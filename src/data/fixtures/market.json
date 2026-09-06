@@ -1,0 +1,72 @@
+[
+  {
+    "symbol": "BTC",
+    "price": 64500,
+    "change24hPct": 2.1,
+    "volume24hUsd": 28000000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "ETH",
+    "price": 3450,
+    "change24hPct": 1.4,
+    "volume24hUsd": 15000000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "BNB",
+    "price": 580,
+    "change24hPct": 0.8,
+    "volume24hUsd": 1200000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "SOL",
+    "price": 148,
+    "change24hPct": -4.6,
+    "volume24hUsd": 3100000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "XRP",
+    "price": 0.62,
+    "change24hPct": 0.2,
+    "volume24hUsd": 1100000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "DOGE",
+    "price": 0.12,
+    "change24hPct": -3.2,
+    "volume24hUsd": 900000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "ADA",
+    "price": 0.45,
+    "change24hPct": 0.5,
+    "volume24hUsd": 500000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "TRX",
+    "price": 0.14,
+    "change24hPct": 0.3,
+    "volume24hUsd": 400000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "AVAX",
+    "price": 28.5,
+    "change24hPct": -2.1,
+    "volume24hUsd": 450000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  },
+  {
+    "symbol": "LINK",
+    "price": 14.2,
+    "change24hPct": 3.5,
+    "volume24hUsd": 600000000.0,
+    "asOf": "2026-09-06T12:00:00.000Z"
+  }
+]

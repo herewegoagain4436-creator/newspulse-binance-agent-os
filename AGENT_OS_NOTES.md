@@ -1,0 +1,79 @@
+# Binance Agent OS — Notes for NewsPulse
+
+Agent OS exposes **two rails**. NewsPulse integrates both.
+
+## 1) MCP — exchange / CEX rail
+
+| Key | Value |
+|-----|-------|
+| URL | `https://agent.binance.com/mcp/agentic` |
+| Auth | **Client OAuth flow** — no API keys stored on device |
+| OAuth client id (Grok) | `grok` |
+
+### Grok CLI setup (reference)
+
+```text
+add binance-mcp-server with url=https://agent.binance.com/mcp/agentic oauth_client_id=groj
+```
+
+Do **not** open the MCP endpoint in a browser. Use the MCP client / OAuth flow only.
+
+### Capabilities (agentic MCP)
+
+- **Market data (public):** tickers, order books, klines, funding
+- **Account:** agentic **sub-account** balances / positions
+- **Trading:** Spot, Margin, Convert, USD-M futures, COIN-M futures
+- **Transfers:** within the agentic sub-account only
+- **No withdrawal scope**
+- **Every trade/transfer requires confirmation**
+- Sub-account **starts empty** — fund from the Binance UI
+
+Adapter: `src/adapters/binanceAgentOs.ts`
+
+## 2) BAW — Binance Wallet Agentic Hub / Agentic Wallet
+
+| Key | Value |
+|-----|-------|
+| Hub | `https://web3.binance.com/agentic-hub` |
+| Role | On-chain / wallet ops for agents (swaps, DeFi-style flows, agentic wallet) |
+
+### Documented daily caps (defaults — not guarantees)
+
+From public Agent OS / Agentic Wallet materials. **Confirm live quotas in Binance App / `wallet settings`.** NewsPulse labels these as documented defaults only.
+
+| Cap | Documented default |
+|-----|---------------|
+| Regular swaps | **$50,000 / day** |
+| DeFi operations | **$100,000 / day** (default; App may show a lower user quota) |
+| x402-style payments | **$20 / day** |
+
+Quotas are independent (DeFi does not consume the regular swap bucket). Settings are read-only via CLI tools; change in the Binance Wallet App.
+
+Adapter: `src/adapters/bawAgenticWallet.ts`  
+Paper/mock interface: balance, quote swap, execute swap within daily cap, kill-switch.
+
+## Dual-rail facade
+
+`src/adapters/agentOsFacade.ts` exposes **both**:
+
+- **MCP** for CEX trading of top-10 non-stables (BUY/SELL/HOLD)
+- **BAW** for optional wallet/on-chain leg when news implies on-chain events (DeFi, exploit, bridge, swap, staking, dApp, etc.), and always visible on the dashboard
+
+## NewsPulse usage
+
+- Default mode: **paper/sim** (local fills / local wallet ledger). No live orders unless `NEWSPULSE_MODE=live` and OAuth MCP / hub is reachable.
+- When live MCP or BAW is unavailable, adapters return **explicitly labeled MOCK** responses.
+- This project does **neot** invent Binance guarantees. Paper ≠ live. Mock ≠ live. Documented caps ≠ contractual SLAs.
+
+## Official docs
+
+- Agentic MCP server: https://developers.binance.com/en/docs/agent-native/mcp-server/agentic
+- Agent Native overview: https://developers.binance.com/en/docs/agent-native/overview
+- LLms index: https://developers.binance.com/en/docs/llms.txt
+- Agentic Hub (wallet): https://web3.binance.com/agentic-hub
+
+## Safety
+
+- Never put Binance API secret keys in `.env` for Agent OS — MCP auth is OAuth.
+- Prefer paper mode for demos and hackathon judging.
+- Kill-switch and risk limits in NewsPulse apply before MCP orders; BAW has its own kill-switch + documented daily-cap checks.

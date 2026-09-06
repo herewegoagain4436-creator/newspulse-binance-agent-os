@@ -1,0 +1,90 @@
+[
+  {
+    "id": "n-btc-etf",
+    "headline": "US spot Bitcoin ETF records record volume and institutional inflows",
+    "summary": "Major asset managers report strong BTC ETF inflows as institutional adoption accelerates.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T08:00:00.000Z",
+    "symbols": [
+      "BTC"
+    ],
+    "sentimentHint": 0.82
+  },
+  {
+    "id": "n-eth-upgrade",
+    "headline": "Ethereum Fusaka upgrade mainnet date confirmed; staking rewards outlook bullish",
+    "summary": "Core devs lock Fusaka mainnet schedule. Analysts cite breakthrough in throughput and ETH staking rewards.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T08:15:00.000Z",
+    "symbols": [
+      "ETH"
+    ],
+    "sentimentHint": 0.7
+  },
+  {
+    "id": "n-sol-hack",
+    "headline": "Solana DeFi protocol exploit drains $48M; bridge vulnerability under investigation",
+    "summary": "A SOL-ecosystem protocol suffered a hack via bridge vulnerability. Liquidation cascade fears weigh on Solana.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T09:00:00.000Z",
+    "symbols": [
+      "SOL"
+    ],
+    "sentimentHint": -0.88
+  },
+  {
+    "id": "n-bnb-listing",
+    "headline": "BNB Chain announces major partnership and new listing wave",
+    "summary": "BNB Chain integration with a Tier-1 payments firm and a slate of new listings sparks bullish chatter.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T09:20:00.000Z",
+    "symbols": [
+      "BNB"
+    ],
+    "sentimentHint": 0.55
+  },
+  {
+    "id": "n-link-ccip",
+    "headline": "Chainlink CCIP lands enterprise integration; oracle demand surge",
+    "summary": "LINK token sentiment lifts after CCIP enterprise integration and record volume on oracle requests.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T09:40:00.000Z",
+    "symbols": [
+      "LINK"
+    ],
+    "sentimentHint": 0.65
+  },
+  {
+    "id": "n-doge-selloff",
+    "headline": "Dogecoin faces sell-off after meme-coin fatigue and exchange outflow spike",
+    "summary": "DOGE slides amid broader meme selloff and large exchange outflows; traders turn bearish short-term.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T10:00:00.000Z",
+    "symbols": [
+      "DOGE"
+    ],
+    "sentimentHint": -0.72
+  },
+  {
+    "id": "n-xrp-neutral",
+    "headline": "Ripple executives discuss RLUSD adoption metrics in Asia",
+    "summary": "XRP-related stablecoin RLUSD sees steady usage; no major catalyst for spot XRP direction.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T10:10:00.000Z",
+    "symbols": [
+      "XRP"
+    ],
+    "sentimentHint": 0.05
+  },
+  {
+    "id": "n-avax-outage",
+    "headline": "Avalanche subnet outage causes downtime for several dApps",
+    "summary": "AVAX network downtime on a popular subnet triggers bearish short-term sentiment and user frustration.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T10:25:00.000Z",
+    "symbols": [
+      "AVAX"
+    ],
+    "sentimentHint": -0.6
+  }
+]
