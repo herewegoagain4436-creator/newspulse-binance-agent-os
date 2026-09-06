@@ -1,0 +1,96 @@
+===========================================================
+ NewsPulse DEMO - Track A / Binance Agent OS Mini Hackathon
+ Dual-rail: MCP (CEX) + BAW (Wallet / Agentic Hub)
+===========================================================
+Universe: BTC (BTCUSDT), ETH (ETHUSDT), BNB (BNBUSDT), SOL (SOLUSDT), XRP (XRPUSDT), DOGE (DOGEUSDT), ADA (ADAUSDT), TRX (TRXUSDT), AVAX (AVAXUSDT), LINK (LINKUSDT)
+
+-- Dual-rail Agent OS --
+  MCP: https://agent.binance.com/mcp/agentic
+       oauth_client_id=grok | PAPER SIM (default) — local fills; Agent OS OAuth unused
+  BAW: https://web3.binance.com/agentic-hub
+       PAPER SIM (BAW) — local wallet ops; Agentic Hub unused
+       documented caps (defaults, not guarantees): swap=$50000/day, defi=$100000/day, x402=$20/day
+
+Adapter (combined): Dual-rail Agent OS — MCP (CEX): PAPER SIM (default) — local fills; Agent OS OAuth unused | BAW (Wallet): PAPER SIM (BAW) — local wallet ops; Agentic Hub unused
+  MCP endpoint: https://agent.binance.com/mcp/agentic
+  BAW hub: https://web3.binance.com/agentic-hub
+Mode: paper | usedMock: true
+
+-- Scores --
+  BTC   score=  0.901 conf=0.67
+         - n-btc-etf: bullish 90% — US spot Bitcoin ETF records record volume and institutional inflows [+etf inflows, +adoption, +institutional]
+  ETH   score=  0.835 conf=0.67
+         - n-eth-upgrade: bullish 84% — Ethereum Fusaka upgrade mainnet date confirmed; staking rewards outlook bullish [+upgrade, +mainnet, +staking rewards]
+  BNB   score=  0.699 conf=0.64
+         - n-bnb-listing: bullish 70% — BNB Chain announces major partnership and new listing wave [+partnership, +bullish, +integration]
+  SOL   score= -0.934 conf=0.67
+         - n-sol-hack: bearish -93% — Solana DeFi protocol exploit drains $48M; bridge vulnerability under investigati [-hack, -exploit, -liquidation]
+  XRP   score=  0.127 conf=0.48
+         - n-xrp-neutral: bullish 13% — Ripple executives discuss RLUSD adoption metrics in Asia [+adoption]
+  DOGE  score= -0.846 conf=0.66
+         - n-doge-selloff: bearish -85% — Dogecoin faces sell-off after meme-coin fatigue and exchange outflow spike [-outflow, -bearish, -sell-off]
+  ADA   score=  0.000 conf=0.00
+  TRX   score=  0.000 conf=0.00
+  AVAX  score= -0.708 conf=0.63
+         - n-avax-outage: bearish -71% — Avalanche subnet outage causes downtime for several dApps [-bearish, -outage, -downtime]
+  LINK  score=  0.654 conf=0.62
+         - n-link-ccip: bullish 65% — Chainlink CCIP lands enterprise integration; oracle demand surge [+integration, +record volume, +surge]
+
+-- Decisions (MCP / CEX paper path) --
+  EXEC SELL SOL   score=-0.934 size=$1500 @ 148  MCP: PAPER SIM fill (no Agent OS submit)
+  EXEC BUY  BTC   score=0.901 size=$1500 @ 64500  MCP: PAPER SIM fill (no Agent OS submit)
+  EXEC SELL DOGE  score=-0.846 size=$1500 @ 0.12  MCP: PAPER SIM fill (no Agent OS submit)
+  EXEC BUY  ETH   score=0.835 size=$1500 @ 3450  MCP: PAPER SIM fill (no Agent OS submit)
+  EXEC SELL AVAX  score=-0.708 size=$1140 @ 28.5  MCP: PAPER SIM fill (no Agent OS submit)
+  EXEC BUY  BNB   score=0.699 size=$1500 @ 580  MCP: PAPER SIM fill (no Agent OS submit)
+  EXEC BUY  LINK  score=0.654 size=$1500 @ 14.2  MCP: PAPER SIM fill (no Agent OS submit)
+  skip HOLD XRP   score=0.127 size=$0 @ 0.62  HOLD
+         reject: HOLD — no trade
+  skip HOLD ADA   score=0.000 size=$0 @ 0.45  HOLD
+         reject: HOLD — no trade
+  skip HOLD TRX   score=0.000 size=$0 @ 0.14  HOLD
+         reject: HOLD — no trade
+
+-- BAW wallet action (on-chain leg) --
+  status: FILLED_PAPER
+  label:  PAPER SIM BAW swap fill (no Agentic Hub submit) | trigger: Ethereum Fusaka upgrade mainnet date confirmed; staking rewards outlook bullish.…
+  swap:   USDT → ETH notional=$25 usedMock=false
+
+-- Paper portfolio --
+  cash=$98140.00 equity=$110940.00 realizedPnL=$-431.62
+    SOL: qty=39.864865 avg=160 mark=148 uPnL=$-478.38
+    DOGE: qty=7500.000000 avg=0.14 mark=0.12 uPnL=$-150.00
+    BTC: qty=0.023256 avg=64500 mark=64500 uPnL=$0.00
+    ETH: qty=0.434783 avg=3450 mark=3450 uPnL=$0.00
+    BNB: qty=2.586207 avg=580 mark=580 uPnL=$0.00
+    LINK: qty=105.633803 avg=14.2 mark=14.2 uPnL=$0.00
+  concentration %: { SOL: 5.32, DOGE: 0.81, BTC: 1.35, ETH: 1.35, BNB: 1.35, LINK: 1.35 }
+  pnl by asset: {
+  SOL: -478.38,
+  DOGE: -150,
+  BTC: 0,
+  ETH: 0,
+  BNB: 0,
+  LINK: 0,
+  __realized: -431.62
+}
+
+-- Market snapshot --
+  BTC   $64500  24h +2.1%
+  ETH   $3450  24h +1.4%
+  BNB   $580  24h +0.8%
+  SOL   $148  24h -4.6%
+  XRP   $0.62  24h +0.2%
+  DOGE  $0.12  24h -3.2%
+  ADA   $0.45  24h +0.5%
+  TRX   $0.14  24h +0.3%
+  AVAX  $28.5  24h -2.1%
+  LINK  $14.2  24h +3.5%
+
+-- Demo assertions --
+  executed BUYs:  4 -> [BTC, ETH, BNB, LINK]
+  executed SELLs: 3 -> [SOL, DOGE, AVAX]
+  BAW action:     FILLED_PAPER (PAPER SIM BAW swap fill (no Agentic Hub submit) | trigger: E…)
+PASS: multi-asset BUY + SELL (MCP paper) + BAW wallet action demonstrated.
+Disclaimer: Not financial advice. Paper/mock is not live Binance execution.
+See AGENT_OS_NOTES.md and DEMO.md
