@@ -1,14 +1,13 @@
 # NewsPulse live smoke guide
 
-Product loop: conflicting free news -> optional tiny x402 premium -> rescore -> risk -> live MCP and BAW.
+Product loop: conflicting free news to optional tiny x402 premium to rescore to risk to live MCP and BAW.
 
-Install deps, then run package scripts `judge` (preferred for judges; prints checklist) or `demo`.
+Use package script judge for integration honesty, or judge:fixture for brain-only.
 
-Expect: premium PENDING/REJECTED (or paper/mock paid), MCP/BAW pending or auth reject, honesty banner if content is SIMULATED after PENDING, template rationales, never silent paper fills in live.
+Expect fail-closed REJECTED/UNCONNECTED without baw QR / MCP OAuth — that is honesty, not full Agent OS success.
+PENDING only after a real baw/MCP tool call.
 
-PENDING/REJECTED without OAuth = successful wiring to Agent OS.
-
-MCP hosts are flexible (Grok is one example). BAW documented x402 cap about 20 USD/day; payments stay 1 to 5 USD.
+Install baw from @binance/agentic-wallet. MCP hosts are flexible (Grok is one example).
 
 Details: JUDGE.md · AGENT_OS_NOTES.md
 

@@ -14,6 +14,7 @@ import {
   type AdapterResult,
   type OrderAck,
   type OrderRequest,
+  describeMcpSession,
 } from "./binanceAgentOs.js";
 import {
   BawAgenticWalletAdapter,
@@ -88,6 +89,23 @@ export class AgentOsFacade {
 
   get endpoint(): string {
     return this.mcp.endpoint;
+  }
+
+  async dualStatusLive() {
+    const base = this.dualStatus();
+    const mcpSess = describeMcpSession();
+    const bawAuth = await this.baw.getAuthStatus();
+    return {
+      ...base,
+      mcp: { ...base.mcp, sessionConnected: mcpSess.connected, sessionLabel: mcpSess.label },
+      baw: {
+        ...base.baw,
+        connectionStatus: bawAuth.connectionStatus,
+        address: bawAuth.address,
+        authLabel: bawAuth.label,
+        instructions: bawAuth.instructions,
+      },
+    };
   }
 
   dualStatus(): DualRailStatus {

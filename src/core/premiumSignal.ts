@@ -73,9 +73,9 @@ export function buildPremiumHonestyBanner(opts: {
   }
   if (paymentStatus === "PENDING") {
     if (contentApplied && contentKind === "simulated_after_pending") {
-      return `PREMIUM: LIVE x402 PENDING ~$${notionalUsd} — content is SIMULATED after pending ack · NOT a paid fill · do not treat as PAID.`;
+      return `PREMIUM: LIVE x402 PENDING ~${notionalUsd} — content is SIMULATED (ALLOW_SIMULATED_PREMIUM=1) · NOT a paid fill.`;
     }
-    return `PREMIUM: LIVE x402 PENDING ~$${notionalUsd} — awaiting hub confirm · NOT paid.`;
+    return `PREMIUM: LIVE x402 PENDING ~${notionalUsd} — awaiting real baw settle · content NOT merged · NOT paid.`;
   }
   if (paymentStatus === "PAID_PAPER") {
     return `PREMIUM: PAID_PAPER ~$${notionalUsd} (explicit paper mode) — fixture content · not live.`;
@@ -203,6 +203,7 @@ function paymentStatusFromAck(
       return "PAID_MOCK";
     case "SUBMITTED_LIVE_PENDING":
       return "PENDING";
+    case "UNCONNECTED":
     case "REJECTED":
     default:
       return "REJECTED";
@@ -275,13 +276,21 @@ export async function maybeFetchPremiumSignal(
     trulyPaid = true; // paid only within explicit paper/mock — not live
     contentNote = `${mode} mode — fixture premium content applied after ${paymentStatus} (not a live fill)`;
   } else if (paymentStatus === "PENDING") {
-    // Explicitly allowed: simulate content after live pending ack (NOT a fill claim)
-    hints = { ...FIXTURE_PREMIUM_HINTS };
-    contentApplied = true;
-    contentKind = "simulated_after_pending";
-    trulyPaid = false;
-    contentNote =
-      "LIVE x402 PENDING — SIMULATED premium signal content for brain merge only; payment NOT filled; NOT PAID";
+    const allowSim = envBool("ALLOW_SIMULATED_PREMIUM", false);
+    if (allowSim) {
+      hints = { ...FIXTURE_PREMIUM_HINTS };
+      contentApplied = true;
+      contentKind = "simulated_after_pending";
+      trulyPaid = false;
+      contentNote =
+        "LIVE x402 PENDING — SIMULATED premium content ONLY because ALLOW_SIMULATED_PREMIUM=1; payment NOT filled; NOT PAID";
+    } else {
+      contentApplied = false;
+      contentKind = "none";
+      trulyPaid = false;
+      contentNote =
+        "LIVE x402 PENDING — no premium content merged (ALLOW_SIMULATED_PREMIUM defaults OFF); NOT PAID";
+    }
   } else {
     // REJECTED
     contentApplied = false;

@@ -2,18 +2,20 @@
   "name": "newspulse",
   "version": "1.0.0",
   "private": true,
-  "description": "NewsPulse \u2014 news-driven multi-asset trading agent for Binance Agent OS Mini Hackathon 2026 (Track A)",
+  "description": "NewsPulse — news-driven multi-asset trading agent for Binance Agent OS Mini Hackathon 2026 (Track A)",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
-    "demo": "tsx src/cli/demo.ts",
-    "cli": "tsx src/cli/index.ts",
-    "agent:once": "tsx src/cli/index.ts once",
+    "demo": "node --import tsx --import ./scripts/baw-bridge.mjs src/cli/demo.ts",
+    "cli": "node --import tsx --import ./scripts/baw-bridge.mjs src/cli/index.ts",
+    "agent:once": "node --import tsx --import ./scripts/baw-bridge.mjs src/cli/index.ts once",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "live": "tsx src/cli/demo.ts",
-    "judge": "tsx src/cli/demo.ts --judge"
+    "live": "node --import tsx --import ./scripts/baw-bridge.mjs src/cli/demo.ts",
+    "judge": "node --import tsx --import ./scripts/baw-bridge.mjs src/cli/demo.ts --judge",
+    "judge:fixture": "NEWSPULSE_MODE=paper NEWSPULSE_DATA=fixture node --import tsx --import ./scripts/baw-bridge.mjs src/cli/demo.ts --judge --fixture",
+    "test": "node --import tsx --test src/test/*.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

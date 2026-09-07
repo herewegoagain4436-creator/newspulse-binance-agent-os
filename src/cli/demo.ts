@@ -7,6 +7,10 @@ import { explainPremium } from "../core/reasoning.js";
 
 async function main(): Promise<void> {
   const mode = envStr("NEWSPULSE_MODE", "live").toLowerCase();
+  const fixtureLane =
+    process.argv.includes("--fixture") ||
+    envStr("NEWSPULSE_DATA", "").toLowerCase() === "fixture" ||
+    envStr("npm_lifecycle_event", "") === "judge:fixture";
   const judgeMode =
     process.argv.includes("--judge") ||
     envStr("NEWSPULSE_JUDGE", "").toLowerCase() === "1" ||
@@ -52,6 +56,7 @@ async function main(): Promise<void> {
   console.log("  MCP endpoint:", result.adapterMeta.mcp.endpoint);
   console.log("  BAW hub:", result.adapterMeta.baw.hubUrl);
   console.log("Mode:", result.mode, "| usedMock:", result.adapterMeta.usedMock);
+  if (result.dataLabel) console.log("Data:", result.dataLabel);
   if (result.runNarrative) {
     console.log("");
     console.log("-- Brain narrative (template/explainable, no LLM) --");
@@ -167,8 +172,8 @@ async function main(): Promise<void> {
     prem.attempted &&
     ["PENDING", "REJECTED", "PAID_PAPER", "PAID_MOCK"].includes(prem.paymentStatus);
 
-  if (!liveOk && mode !== "paper" && mode !== "mock") {
-    console.error("FAIL: expected live mode (or explicit paper/mock opt-in)");
+  if (!fixtureLane && !liveOk && mode !== "paper" && mode !== "mock") {
+    console.error("FAIL: expected live mode (or explicit paper/mock/fixture opt-in)");
     process.exitCode = 1;
     return;
   }
@@ -236,10 +241,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log("PASS: live smoke — brain + x402 premium + dual-rail OK.");
-  console.log(
-    "Note: SUBMITTED_LIVE_PENDING_CONFIRM / auth REJECTED / x402 PENDING|REJECTED are expected without interactive OAuth/hub session — that IS successful Agent OS integration."
-  );
+  const sessNote = fixtureLane
+    ? "FIXTURE/PAPER lane — brain-only PASS (not a claim of live Agent OS session)."
+    : "INTEGRATION lane — PASS means honest fail-closed or real session checks; REJECTED/UNCONNECTED without baw/MCP OAuth is honesty, NOT full Agent OS success.";
+  console.log(fixtureLane ? "PASS: fixture/brain-only judge lane." : "PASS: integration-honesty judge lane.");
+  console.log("Note:", sessNote);
   console.log("Disclaimer: Not financial advice. Live trades require Agent OS user confirmation.");
 
   // Judge checklist (always printed; emphasized in judge mode)
@@ -248,7 +254,7 @@ async function main(): Promise<void> {
   console.log(" JUDGE CHECKLIST (Track A NewsPulse)");
   console.log("===========================================================");
   const checks: Array<[boolean, string]> = [
-    [facade.mode === "live" || mode === "live", "Live default (NEWSPULSE_MODE=live)"],
+    [fixtureLane || facade.mode === "live" || mode === "live", fixtureLane ? "Fixture/paper lane explicit (judge:fixture)" : "Live default (NEWSPULSE_MODE=live)"],
     [!!status.mcp.oauthClientId, `MCP oauth_client_id set (${status.mcp.oauthClientId}; Grok=example)`],
     [!!result.adapterMeta.mcp.endpoint, "MCP CEX rail visible"],
     [!!result.adapterMeta.baw.hubUrl, "BAW Wallet/x402 rail visible"],
@@ -264,9 +270,19 @@ async function main(): Promise<void> {
       "Live never silent paper MCP fills",
     ],
     [
-      pending > 0 || rejectedAuth > 0 || ["PENDING", "REJECTED", "SUBMITTED_LIVE_PENDING"].includes(prem?.paymentStatus ?? "") ||
-        ["SUBMITTED_LIVE_PENDING", "REJECTED"].includes(result.bawAction?.status ?? ""),
-      "PENDING/REJECTED narrated as integration success (no OAuth session needed for demo)",
+      fixtureLane
+        ? true
+        : pending > 0 ||
+          rejectedAuth > 0 ||
+          ["PENDING", "REJECTED", "UNCONNECTED"].includes(prem?.paymentStatus ?? "") ||
+          ["SUBMITTED_LIVE_PENDING", "REJECTED", "UNCONNECTED", "SKIPPED"].includes(result.bawAction?.status ?? ""),
+      fixtureLane
+        ? "Fixture lane: brain path exercised without requiring live sessions"
+        : "Integration lane: live rails fail closed OR real pending after authentic session (REJECTED/UNCONNECTED ≠ full Agent OS success)",
+    ],
+    [
+      fixtureLane || !(prem?.contentKind === "simulated_after_pending" && !envStr("ALLOW_SIMULATED_PREMIUM","")),
+      "Simulated premium only when ALLOW_SIMULATED_PREMIUM=1",
     ],
     [!!result.runNarrative, "Run narrative present for judges"],
   ];

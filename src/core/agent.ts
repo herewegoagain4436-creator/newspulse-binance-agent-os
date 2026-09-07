@@ -7,7 +7,7 @@
  */
 import { AgentOsFacade } from "../adapters/agentOsFacade.js";
 import { BinanceAgentOsAdapter } from "../adapters/binanceAgentOs.js";
-import { loadFixtureMarket, loadFixtureNews } from "./news.js";
+import { loadFixtureMarket, loadFixtureNews, loadMarket, loadNews, dataMode } from "./news.js";
 import {
   applyDecision,
   emptyPortfolio,
@@ -99,8 +99,27 @@ export function seedPortfolio(
 }
 
 export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunResult> {
-  const newsIn = opts.news ?? loadFixtureNews();
-  const market = opts.market ?? loadFixtureMarket();
+  let newsIn = opts.news;
+  let market = opts.market;
+  let dataLabel = "caller-provided";
+  if (!newsIn || !market) {
+    const mode = dataMode();
+    if (!market) {
+      if (mode === "fixture") {
+        market = loadFixtureMarket();
+        dataLabel = "FIXTURE market";
+      } else {
+        const m = await loadMarket();
+        market = m.market;
+        dataLabel = m.label;
+      }
+    }
+    if (!newsIn) {
+      const n = await loadNews(mode === "fixture");
+      newsIn = n.news;
+      dataLabel += " | " + n.label;
+    }
+  }
   const facade = asFacade(opts.adapter);
   const risk = opts.risk ?? DEFAULT_RISK;
   const riskState = opts.riskState ?? createRiskState();
@@ -272,6 +291,7 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
     bawAction,
     premiumSignal: premiumSummary,
     runNarrative,
+    dataLabel,
   };
 }
 

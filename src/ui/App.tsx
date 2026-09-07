@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { runAgentOnce, describeUniverse } from "../core/agent";
 import { concentration, pnlByAsset } from "../core/portfolio";
 import { AgentOsFacade } from "../adapters/agentOsFacade";
+import { BawAgenticWalletAdapter } from "../adapters/bawAgenticWallet";
+import { describeMcpSession } from "../adapters/binanceAgentOs";
 import type { AgentRunResult } from "../core/types";
 import { AppBody } from "./AppBody";
 
@@ -9,8 +11,53 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [bawStatus, setBawStatus] = useState<string>("probing…");
+  const [bawAddr, setBawAddr] = useState<string>("");
+  const [signinInfo, setSigninInfo] = useState<string>("");
+  const [connecting, setConnecting] = useState(false);
   const universe = useMemo(() => describeUniverse(), []);
   const dualPreview = useMemo(() => new AgentOsFacade().dualStatus(), []);
+  const mcpSess = useMemo(() => describeMcpSession(), []);
+
+  async function refreshBaw() {
+    try {
+      const baw = new BawAgenticWalletAdapter();
+      const auth = await baw.getAuthStatus();
+      setBawStatus(auth.connectionStatus + " — " + auth.label);
+      setBawAddr(auth.address || "");
+    } catch (e) {
+      setBawStatus(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  useEffect(() => { void refreshBaw(); }, []);
+
+  async function connectWallet() {
+    setConnecting(true);
+    setSigninInfo("");
+    try {
+      const baw = new BawAgenticWalletAdapter();
+      const started = await baw.beginConnect();
+      if (!started.ok) {
+        setSigninInfo(started.label);
+      } else {
+        const d = started.data || {};
+        setSigninInfo([
+          "1) Open urlForWeb / scan QR in Binance Wallet App",
+          d.urlForWeb ? "urlForWeb: " + d.urlForWeb : "",
+          d.pairingCode ? "pairingCode: " + d.pairingCode : "",
+          d.qrCodeId ? "qrCodeId: " + d.qrCodeId : "",
+          "2) Confirm in App, then run: baw auth verify --qrCodeId <id> --json",
+          "Real baw CLI auth only — not a fake in-page wallet inject.",
+        ].filter(Boolean).join("\n"));
+      }
+      await refreshBaw();
+    } catch (e) {
+      setSigninInfo(e instanceof Error ? e.message : String(e));
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   async function runOnce() {
     setLoading(true);
@@ -29,6 +76,7 @@ export function App() {
         premium: { force: true, notionalUsd: 2 },
       });
       setResult(r);
+      await refreshBaw();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -38,6 +86,7 @@ export function App() {
 
   const conc = result ? concentration(result.portfolio) : {};
   const pnl = result ? pnlByAsset(result.portfolio) : {};
+
   return (
     <div className="app">
       <header>
@@ -46,41 +95,39 @@ export function App() {
             News<span>Pulse</span>
           </h1>
           <p className="sub">
-            Track A hook: conflicting free news → tiny x402 → rescore → risk → live MCP/BAW.
-            Brain (rules/lexicon/scorer, no LLM) + template rationales. MCP host flexible (Grok = example).
-            Live default; PENDING/REJECTED = integration success — never silent paper fills.
+            Track A: conflicting free news → tiny x402 → rescore → risk → live MCP/BAW.
+            Real baw CLI + honest MCP host bridge — no hub-HTTP stubs.
           </p>
           <p className="sub mono">Universe: {universe}</p>
         </div>
         <div className="actions">
           <span className="badge">mode: live</span>
           <span className="badge">MCP + BAW</span>
+          <button onClick={connectWallet} disabled={connecting}>
+            {connecting ? "Starting baw auth…" : "Connect Wallet (baw)"}
+          </button>
           <button onClick={runOnce} disabled={loading}>
             {loading ? "Running..." : "Run agent once"}
           </button>
         </div>
       </header>
 
-      {!result ? (
-        <div className="grid" style={{ marginBottom: 14 }}>
-          <div className="card half">
-            <h2>MCP rail (CEX)</h2>
-            <p className="mono">{dualPreview.mcp.endpoint}</p>
-            <p className="sub">oauth_client_id={dualPreview.mcp.oauthClientId}</p>
-            <p className="sub">{dualPreview.mcp.label}</p>
-          </div>
-          <div className="card half">
-            <h2>BAW rail (Wallet)</h2>
-            <p className="mono">{dualPreview.baw.hubUrl}</p>
-            <p className="sub">
-              documented caps: swap ${dualPreview.baw.documentedCapsUsd.swap}/d · defi $
-              {dualPreview.baw.documentedCapsUsd.defi}/d · x402 $
-              {dualPreview.baw.documentedCapsUsd.x402}/d (defaults, not guarantees)
-            </p>
-            <p className="sub">{dualPreview.baw.label}</p>
-          </div>
+      <div className="grid" style={{ marginBottom: 14 }}>
+        <div className="card half">
+          <h2>MCP session</h2>
+          <p className="mono">{dualPreview.mcp.endpoint}</p>
+          <p className="sub">oauth_client_id={dualPreview.mcp.oauthClientId} (Grok = example)</p>
+          <p className="sub">{mcpSess.connected ? "SESSION ENV PRESENT" : "UNCONNECTED"} — {mcpSess.label}</p>
         </div>
-      ) : null}
+        <div className="card half">
+          <h2>BAW wallet (baw CLI)</h2>
+          <p className="mono">{dualPreview.baw.hubUrl} (docs only — not auth)</p>
+          <p className="sub">{bawStatus}</p>
+          {bawAddr ? <p className="mono">address: {bawAddr}</p> : null}
+          <p className="sub">Install agentic-wallet CLI globally · Auth: baw auth signin then App QR then verify</p>
+          {signinInfo ? <pre className="mono reason" style={{ whiteSpace: "pre-wrap" }}>{signinInfo}</pre> : null}
+        </div>
+      </div>
 
       {error ? (
         <div className="card">
@@ -88,24 +135,9 @@ export function App() {
         </div>
       ) : null}
 
-      {!result && !loading ? (
-        <div className="card">
-          <h2>Ready</h2>
-          <p className="sub">
-            Click Run agent once: brain scores free news → maybe tiny x402 premium (honesty banner) →
-            rescore → risk → live MCP/BAW (pending confirm or clear auth — never fake fills).
-            See JUDGE.md for the 60–90s demo script.
-          </p>
-        </div>
-      ) : null}
-
+      {!result && !loading ? (<div className="card"><h2>Ready</h2><p className="sub">Use Connect Wallet for real baw auth. Live rails fail closed without QR/OAuth.</p></div>) : null}
       {result ? <AppBody result={result} conc={conc} pnl={pnl} /> : null}
-
-      <p className="disclaimer">
-        Disclaimer: not financial advice. Live Agent OS trades require user confirmation
-        (MCP OAuth + Agentic Hub). No fake live fills. x402 premium payments stay tiny under
-        the documented ~$20/day cap. See AGENT_OS_NOTES.md.
-      </p>
+      <p className="disclaimer">Disclaimer: not financial advice. Live trades need MCP OAuth + baw App confirmation. No fake live fills.</p>
     </div>
   );
 }

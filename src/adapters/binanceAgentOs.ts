@@ -14,6 +14,7 @@
 import type { Decision, MarketTick, SymbolId } from "../core/types.js";
 import { pairFor } from "../core/universe.js";
 import { envStr } from "../core/env.js";
+import { callMcpBridge, mcpSessionStatus } from "./mcpBridge.js";
 
 export const AGENT_OS_MCP_URL =
   envStr("BINANCE_AGENT_OS_MCP_URL", "https://agent.binance.com/mcp/agentic");
@@ -55,29 +56,9 @@ function modeFromEnv(): AdapterMode {
   return "live";
 }
 
-/**
- * Probe MCP reachability. OAuth tokens live in the MCP host (e.g. Grok),
- * not as API keys in this app — so a bare fetch often fails; live mode then rejects with auth required.
- */
-async function tryMcpToolsList(endpoint: string): Promise<boolean> {
-  try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/list",
-        params: {},
-      }),
-      signal: AbortSignal.timeout(2500),
-    });
-    if (!res.ok) return false;
-    const body = await res.json().catch(() => null);
-    return body != null && typeof body === "object";
-  } catch {
-    return false;
-  }
+/** Session-aware MCP status — never treat bare endpoint HTTP as OAuth success. */
+export function describeMcpSession() {
+  return mcpSessionStatus();
 }
 
 function mockFill(req: OrderRequest): OrderAck {
@@ -149,8 +130,13 @@ export class BinanceAgentOsAdapter {
       return false;
     }
     if (this.liveOk != null) return this.liveOk;
-    this.liveOk = await tryMcpToolsList(this.endpoint);
+    // Real session only — never treat unauthenticated endpoint reachability as LIVE OK
+    this.liveOk = mcpSessionStatus().connected;
     return this.liveOk;
+  }
+
+  sessionStatus() {
+    return mcpSessionStatus();
   }
 
   metaLabel(usedMock: boolean): string {
@@ -211,71 +197,65 @@ export class BinanceAgentOsAdapter {
       };
     }
 
-    const live = await this.resolveLive();
-    if (!live) {
+    const sess = mcpSessionStatus();
+    if (!sess.connected) {
       return {
-        data: liveAuthRequired(
-          req,
-          "MCP tools/list unreachable without host OAuth session"
-        ),
+        data: liveAuthRequired(req, sess.label),
         usedMock: false,
-        label:
-          "LIVE auth required — MCP/OAuth unavailable in-process; add Agent OS MCP with oauth_client_id=grok",
+        label: "LIVE MCP REJECTED — " + sess.label,
         endpoint: this.endpoint,
         oauthClientId: this.oauthClientId,
       };
     }
 
-    try {
-      // Live trades MUST go through OAuth MCP host and require confirmation.
-      // No API keys. Sub-account transfers only; no withdrawals.
-      const res = await fetch(this.endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: req.clientOrderId,
-          method: "tools/call",
-          params: {
-            name: "place_order",
-            arguments: {
-              symbol: pairFor(req.symbol),
-              side: req.side,
-              notional: req.sizeUsd,
-              type: "MARKET",
-              requireConfirmation: true,
-            },
-          },
-        }),
-        signal: AbortSignal.timeout(4000),
+    // Real host bridge tool call only — no unauthenticated place_order guess via bare fetch
+    let bridge = callMcpBridge("tools/call", "place_order", {
+      symbol: pairFor(req.symbol),
+      side: req.side,
+      notional: req.sizeUsd,
+      type: "MARKET",
+      requireConfirmation: true,
+      clientOrderId: req.clientOrderId,
+    });
+    if (
+      !bridge.ok &&
+      bridge.code === "MCP_USE_NODE_BRIDGE" &&
+      typeof process !== "undefined" &&
+      process.versions?.node
+    ) {
+      const mod = await import("./mcpBridgeNode.js");
+      bridge = mod.callMcpBridgeNode("tools/call", "place_order", {
+        symbol: pairFor(req.symbol),
+        side: req.side,
+        notional: req.sizeUsd,
+        type: "MARKET",
+        requireConfirmation: true,
+        clientOrderId: req.clientOrderId,
       });
-      if (!res.ok) throw new Error(`MCP HTTP ${res.status}`);
-      const raw = await res.json();
+    }
+    if (!bridge.ok) {
       return {
-        data: {
-          orderId: `LIVE-PENDING-${req.clientOrderId}`,
-          status: "SUBMITTED_LIVE_PENDING_CONFIRM",
-          filledQty: 0,
-          avgPrice: req.price,
-          requiresConfirmation: true,
-          raw,
-        },
+        data: liveAuthRequired(req, bridge.label),
         usedMock: false,
-        label: "LIVE MCP submit — awaiting user confirmation (Agent OS rule)",
-        endpoint: this.endpoint,
-        oauthClientId: this.oauthClientId,
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        data: liveAuthRequired(req, `live MCP place_order failed: ${msg}`),
-        usedMock: false,
-        label:
-          "LIVE auth/submit failed — ensure MCP host OAuth (oauth_client_id=grok) and retry; not a paper fill",
+        label: "LIVE MCP REJECTED — " + bridge.label,
         endpoint: this.endpoint,
         oauthClientId: this.oauthClientId,
       };
     }
+    return {
+      data: {
+        orderId: "LIVE-PENDING-" + req.clientOrderId,
+        status: "SUBMITTED_LIVE_PENDING_CONFIRM",
+        filledQty: 0,
+        avgPrice: req.price,
+        requiresConfirmation: true,
+        raw: bridge.data,
+      },
+      usedMock: false,
+      label: "LIVE MCP submit via host bridge (" + bridge.via + ") — awaiting user confirmation",
+      endpoint: this.endpoint,
+      oauthClientId: this.oauthClientId,
+    };
   }
 
   async executeDecision(d: Decision): Promise<AdapterResult<OrderAck | null>> {

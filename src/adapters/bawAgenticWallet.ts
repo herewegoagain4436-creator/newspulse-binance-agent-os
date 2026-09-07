@@ -14,7 +14,19 @@
  * @see https://web3.binance.com/agentic-hub
  * @see ../AGENT_OS_NOTES.md
  */
-import { envStr } from "../core/env.js";
+import { envBool, envStr } from "../core/env.js";
+import {
+  enrichConnected,
+  liveExecuteSwap,
+  liveQuoteSwap,
+  livePayX402,
+  probeLiveAuth,
+  startAuthSignin,
+  verifyAuth,
+  BAW_AUTH_HINT,
+  BAW_INSTALL_HINT,
+  BSC_CHAIN_ID,
+} from "./bawLive.js";
 
 export const BAW_HUB_URL = envStr(
   "BINANCE_BAW_HUB_URL",
@@ -64,7 +76,7 @@ export interface BawSwapQuote {
 
 export interface BawSwapAck {
   swapId: string;
-  status: "FILLED_PAPER" | "SUBMITTED_MOCK" | "REJECTED" | "SUBMITTED_LIVE_PENDING";
+  status: "FILLED_PAPER" | "SUBMITTED_MOCK" | "REJECTED" | "SUBMITTED_LIVE_PENDING" | "UNCONNECTED";
   fromAsset: string;
   toAsset: string;
   amountIn: number;
@@ -86,7 +98,7 @@ function utcDayKey(d = new Date()): string {
 
 export interface BawX402Ack {
   paymentId: string;
-  status: "FILLED_PAPER" | "SUBMITTED_MOCK" | "REJECTED" | "SUBMITTED_LIVE_PENDING";
+  status: "FILLED_PAPER" | "SUBMITTED_MOCK" | "REJECTED" | "SUBMITTED_LIVE_PENDING" | "UNCONNECTED";
   notionalUsd: number;
   purpose: string;
   remainingX402CapUsd: number;
@@ -125,12 +137,12 @@ export class BawAgenticWalletAdapter {
       return "MOCK (BAW) — Agentic Hub not in-process; not live on-chain";
     }
     if (this.mode === "live") {
-      return "LIVE via Binance Wallet Agentic Hub — swaps/DeFi under documented daily caps + App confirmations";
+      return "LIVE via baw CLI — auth required (baw auth signin + QR); never hub-HTTP stubs";
     }
     if (usedMock) {
-      return "MOCK (BAW) — Agentic Hub not in-process; not live on-chain";
+      return "MOCK (BAW) — not live on-chain";
     }
-    return "LIVE via Binance Wallet Agentic Hub — swaps/DeFi under documented daily caps + App confirmations";
+    return "LIVE via baw CLI — swaps/x402 under App confirmations";
   }
 
   status() {
@@ -153,7 +165,9 @@ export class BawAgenticWalletAdapter {
         BAW_DOCUMENTED_DAILY_CAPS_USD.x402 - this.x402SpentUsd
       ),
       label: this.metaLabel(this.mode !== "live"),
-      note: "Caps are documented defaults from public materials — not invented guarantees; confirm in Binance App / wallet settings.",
+      connectionStatus: this.mode === "live" ? "PROBE_VIA_getAuthStatus" : this.mode.toUpperCase(),
+      chainId: BSC_CHAIN_ID,
+      note: "Caps are documented defaults / baw wallet settings — not invented guarantees. Auth = baw auth signin + QR + verify. Hub URL is docs only — never treat hub HTTP 200 as auth.",
     };
   }
 
@@ -204,11 +218,20 @@ export class BawAgenticWalletAdapter {
         rail: "BAW",
       };
     }
+    const auth = await enrichConnected(await probeLiveAuth());
+    if (!auth.ok) {
+      return {
+        data: [],
+        usedMock: false,
+        label: auth.label,
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
     return {
-      data,
+      data: auth.balances || [],
       usedMock: false,
-      label:
-        "LIVE BAW balances — local cache only until hub session wired; not a paper fill",
+      label: auth.label + " balances",
       hubUrl: this.hubUrl,
       rail: "BAW",
     };
@@ -223,6 +246,36 @@ export class BawAgenticWalletAdapter {
     priceHint?: number;
   }): Promise<BawAdapterResult<BawSwapQuote>> {
     this.rollDayIfNeeded();
+    if (this.mode === "live") {
+      const live = await liveQuoteSwap({
+        fromAsset: opts.fromAsset,
+        toAsset: opts.toAsset,
+        amountIn: opts.amountIn,
+      });
+      const notionalUsd =
+        opts.notionalUsd ??
+        (opts.fromAsset.toUpperCase() === "USDT" ? opts.amountIn : opts.amountIn * (opts.priceHint ?? 1));
+      const remaining = live.auth.remainingSwapUsd ?? Math.max(0, BAW_DOCUMENTED_DAILY_CAPS_USD.swap - this.swapSpentUsd);
+      const amountOut = live.ok ? live.amountOut : opts.amountIn * (opts.priceHint ?? 1);
+      const price = opts.amountIn ? amountOut / opts.amountIn : opts.priceHint ?? 1;
+      return {
+        data: {
+          fromAsset: opts.fromAsset.toUpperCase(),
+          toAsset: opts.toAsset.toUpperCase(),
+          amountIn: opts.amountIn,
+          amountOut,
+          price,
+          feeUsd: Math.max(0.01, notionalUsd * 0.001),
+          withinDailyCap: live.ok && notionalUsd <= remaining && !this.killSwitchOn,
+          remainingSwapCapUsd: remaining,
+          documentedCapUsd: live.auth.caps?.swap ?? BAW_DOCUMENTED_DAILY_CAPS_USD.swap,
+        },
+        usedMock: false,
+        label: live.label,
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
     const price = opts.priceHint ?? 1;
     const amountOut = opts.amountIn * price;
     const notionalUsd =
@@ -247,8 +300,8 @@ export class BawAgenticWalletAdapter {
     };
     return {
       data: quote,
-      usedMock: this.mode !== "live",
-      label: `BAW swap quote (${this.mode}) — cap check vs documented $${BAW_DOCUMENTED_DAILY_CAPS_USD.swap}/day swap default`,
+      usedMock: this.mode === "mock",
+      label: `BAW swap quote (${this.mode}) — cap check vs documented ${BAW_DOCUMENTED_DAILY_CAPS_USD.swap}/day swap default`,
       hubUrl: this.hubUrl,
       rail: "BAW",
     };
@@ -397,65 +450,46 @@ export class BawAgenticWalletAdapter {
     }
 
     if (this.mode === "live") {
-      // Attempt hub reachability; in-process Node cannot complete wallet OAuth alone.
-      let hubReachable = false;
-      try {
-        const res = await fetch(this.hubUrl, {
-          method: "GET",
-          signal: AbortSignal.timeout(2500),
-        });
-        hubReachable = res.ok || res.status === 401 || res.status === 403;
-      } catch {
-        hubReachable = false;
-      }
-
-      if (!hubReachable) {
+      const live = await liveExecuteSwap({
+        fromAsset: from,
+        toAsset: to,
+        amountIn: opts.amountIn,
+        confirm: envBool("NEWSPULSE_BAW_ALLOW_SPEND", false),
+      });
+      if (!live.ok) {
+        const st = live.status === "UNCONNECTED" ? "UNCONNECTED" : "REJECTED";
         return {
           data: {
-            swapId: `AUTH-BAW-${clientId}`,
-            status: "REJECTED",
+            swapId: `REJ-${clientId}`,
+            status: st,
             fromAsset: from,
             toAsset: to,
             amountIn: opts.amountIn,
             amountOut: 0,
             notionalUsd: opts.notionalUsd,
             requiresConfirmation: false,
-            raw: {
-              live: true,
-              authRequired: true,
-              note: "LIVE BAW auth/hub required — open Agentic Hub in Binance Wallet App / complete wallet agent auth. Not a paper fill.",
-              hubUrl: this.hubUrl,
-              documentedCapsUsd: BAW_DOCUMENTED_DAILY_CAPS_USD,
-            },
+            raw: { live: true, auth: live.auth, note: live.label },
           },
           usedMock: false,
-          label:
-            "LIVE BAW auth required — Agentic Hub unavailable in-process; authenticate via Binance Wallet App",
+          label: live.label,
           hubUrl: this.hubUrl,
           rail: "BAW",
         };
       }
-
-      // Hub reachable but in-process swap still needs wallet confirmation / session.
       return {
         data: {
-          swapId: `LIVE-PENDING-BAW-${clientId}`,
+          swapId: live.orderId || `LIVE-BAW-${clientId}`,
           status: "SUBMITTED_LIVE_PENDING",
           fromAsset: from,
           toAsset: to,
           amountIn: opts.amountIn,
-          amountOut,
+          amountOut: live.amountOut,
           notionalUsd: opts.notionalUsd,
           requiresConfirmation: true,
-          raw: {
-            live: true,
-            note: "LIVE BAW submit pending — confirm in Binance Wallet / Agentic Hub; not a filled paper swap",
-            hubUrl: this.hubUrl,
-            documentedCapsUsd: BAW_DOCUMENTED_DAILY_CAPS_USD,
-          },
+          raw: { live: true, note: live.label, raw: (live as { raw?: unknown }).raw },
         },
         usedMock: false,
-        label: "LIVE BAW pending confirmation — confirm swap in Agentic Hub / App",
+        label: live.label,
         hubUrl: this.hubUrl,
         rail: "BAW",
       };
@@ -589,54 +623,48 @@ export class BawAgenticWalletAdapter {
       };
     }
 
-    // live
-    let hubReachable = false;
-    try {
-      const res = await fetch(this.hubUrl, {
-        method: "GET",
-        signal: AbortSignal.timeout(2500),
-      });
-      hubReachable = res.ok || res.status === 401 || res.status === 403;
-    } catch {
-      hubReachable = false;
+    // live — real baw CLI only; never invent PENDING from hub webpage HTTP 200
+    const premiumUrl = envStr("NEWSPULSE_PREMIUM_URL", "");
+    let paymentRequirements: unknown = undefined;
+    if (premiumUrl) {
+      try {
+        const hit = await fetch(premiumUrl, { signal: AbortSignal.timeout(4000) });
+        if (hit.status === 402) {
+          const hdr = hit.headers.get("PAYMENT-REQUIRED") || hit.headers.get("payment-required");
+          if (hdr) {
+            try { paymentRequirements = JSON.parse(Buffer.from(hdr, "base64").toString("utf8")); }
+            catch { try { paymentRequirements = JSON.parse(hdr); } catch { /* ignore */ } }
+          } else {
+            paymentRequirements = await hit.json().catch(() => null);
+          }
+        }
+      } catch {
+        /* no merchant invoice */
+      }
     }
-
-    if (!hubReachable) {
-      return {
-        data: {
-          paymentId: `AUTH-X402-${clientId}`,
-          status: "REJECTED",
-          ...baseAck,
-          requiresConfirmation: false,
-          raw: {
-            live: true,
-            authRequired: true,
-            note: "LIVE BAW x402 auth/hub required — open Agentic Hub in Binance Wallet App. Not a paper fill.",
-            hubUrl: this.hubUrl,
-          },
-        },
-        usedMock: false,
-        label:
-          "LIVE BAW x402 auth required — Agentic Hub unavailable in-process; authenticate via Binance Wallet App",
-        hubUrl: this.hubUrl,
-        rail: "BAW",
-      };
-    }
-
+    const live = await livePayX402({
+      notionalUsd: notional,
+      purpose: opts.purpose,
+      confirm: envBool("NEWSPULSE_BAW_ALLOW_SPEND", false),
+      paymentRequirements,
+    });
+    const st =
+      live.status === "UNCONNECTED"
+        ? "UNCONNECTED"
+        : live.status === "SUBMITTED_LIVE_PENDING"
+          ? "SUBMITTED_LIVE_PENDING"
+          : "REJECTED";
     return {
       data: {
-        paymentId: `LIVE-PENDING-X402-${clientId}`,
-        status: "SUBMITTED_LIVE_PENDING",
+        paymentId: live.paymentId || `REJ-${clientId}`,
+        status: st,
         ...baseAck,
-        requiresConfirmation: true,
-        raw: {
-          live: true,
-          note: "LIVE BAW x402 pending — confirm in Binance Wallet / Agentic Hub; not a filled paper payment",
-          hubUrl: this.hubUrl,
-        },
+        remainingX402CapUsd: live.auth?.remainingX402Usd ?? baseAck.remainingX402CapUsd,
+        requiresConfirmation: st === "SUBMITTED_LIVE_PENDING",
+        raw: { live: true, note: live.label, auth: live.auth, raw: (live as { raw?: unknown }).raw },
       },
       usedMock: false,
-      label: `LIVE BAW x402 pending confirmation — $${notional} for ${opts.purpose}`,
+      label: live.label,
       hubUrl: this.hubUrl,
       rail: "BAW",
     };
@@ -649,6 +677,39 @@ export class BawAgenticWalletAdapter {
       this.x402SpentUsd = 0;
     }
   }
+
+
+  async getAuthStatus() {
+    if (this.mode !== "live") {
+      return {
+        connectionStatus: this.mode.toUpperCase(),
+        address: "",
+        cliAvailable: false,
+        instructions: "Mode is " + this.mode + " — BAW CLI unused",
+        label: this.metaLabel(this.mode === "mock"),
+      };
+    }
+    const auth = await enrichConnected(await probeLiveAuth());
+    return {
+      connectionStatus: auth.connectionStatus,
+      address: auth.address,
+      cliAvailable: auth.cliAvailable,
+      instructions: auth.ok ? "Wallet CONNECTED via baw" : BAW_AUTH_HINT + " | " + BAW_INSTALL_HINT,
+      label: auth.label,
+      remainingSwapUsd: auth.remainingSwapUsd,
+      remainingX402Usd: auth.remainingX402Usd,
+      balances: auth.balances,
+    };
+  }
+
+  async beginConnect() {
+    return startAuthSignin();
+  }
+
+  async completeConnect(qrCodeId: string) {
+    return verifyAuth(qrCodeId);
+  }
+
 }
 
 /** Headline/summary heuristics for optional on-chain BAW path */

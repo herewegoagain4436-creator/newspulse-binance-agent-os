@@ -180,4 +180,6 @@ export interface AgentRunResult {
   premiumSignal?: PremiumSignalSummary | null;
   /** Template/explainable run narrative (no LLM) */
   runNarrative?: string;
+  /** Market/news source label (fixture vs live public) */
+  dataLabel?: string;
 }

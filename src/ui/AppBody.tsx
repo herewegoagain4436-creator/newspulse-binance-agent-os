@@ -41,6 +41,13 @@ export function AppBody({
   const prem = result.premiumSignal;
   return (
     <div className="grid">
+      {result.dataLabel ? (
+        <div className="card">
+          <h2>Data source</h2>
+          <p className="mono">{result.dataLabel}</p>
+        </div>
+      ) : null}
+
       {result.runNarrative ? (
         <div className="card">
           <h2>Brain narrative (template / explainable — no LLM)</h2>
