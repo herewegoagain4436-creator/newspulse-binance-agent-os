@@ -46,8 +46,9 @@ export function App() {
             News<span>Pulse</span>
           </h1>
           <p className="sub">
-            Track A: brain (rules/lexicon/scorer) + optional x402 premium signals → risk-checked
-            BUY/SELL/HOLD via Agent OS MCP (CEX) + BAW (Wallet). Live default; trades need confirmation.
+            Track A hook: conflicting free news → tiny x402 → rescore → risk → live MCP/BAW.
+            Brain (rules/lexicon/scorer, no LLM) + template rationales. MCP host flexible (Grok = example).
+            Live default; PENDING/REJECTED = integration success — never silent paper fills.
           </p>
           <p className="sub mono">Universe: {universe}</p>
         </div>
@@ -91,8 +92,9 @@ export function App() {
         <div className="card">
           <h2>Ready</h2>
           <p className="sub">
-            Click Run agent once: brain scores free news → maybe tiny x402 premium → rescore →
-            risk → live MCP/BAW (pending confirm or clear auth — never fake fills).
+            Click Run agent once: brain scores free news → maybe tiny x402 premium (honesty banner) →
+            rescore → risk → live MCP/BAW (pending confirm or clear auth — never fake fills).
+            See JUDGE.md for the 60–90s demo script.
           </p>
         </div>
       ) : null}

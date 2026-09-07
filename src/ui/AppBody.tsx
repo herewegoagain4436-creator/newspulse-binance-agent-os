@@ -9,16 +9,23 @@ function premiumBadge(status: string | undefined): string {
   switch (status) {
     case "PAID_PAPER":
     case "PAID_MOCK":
-      return "paid";
+      return "paid (paper/mock)";
     case "PENDING":
-      return "pending";
+      return "pending (not paid)";
     case "REJECTED":
-      return "rejected";
+      return "rejected (not paid)";
     case "SKIPPED":
       return "skipped";
     default:
       return status ?? "—";
   }
+}
+
+function honestyClass(kind: string | undefined, trulyPaid: boolean | undefined): string {
+  if (trulyPaid) return "banner banner-paid";
+  if (kind === "simulated_after_pending") return "banner banner-simulated";
+  if (kind === "none") return "banner banner-none";
+  return "banner";
 }
 
 export function AppBody({
@@ -34,6 +41,13 @@ export function AppBody({
   const prem = result.premiumSignal;
   return (
     <div className="grid">
+      {result.runNarrative ? (
+        <div className="card">
+          <h2>Brain narrative (template / explainable — no LLM)</h2>
+          <p className="sub">{result.runNarrative}</p>
+        </div>
+      ) : null}
+
       <div className="card half">
         <h2>MCP adapter (CEX)</h2>
         <p className="mono">{mcp.label}</p>
@@ -72,13 +86,23 @@ export function AppBody({
           <h2>
             x402 premium signal{" "}
             <span className="badge">{premiumBadge(prem.paymentStatus)}</span>
+            {prem.trulyPaid ? (
+              <span className="badge badge-paid">trulyPaid</span>
+            ) : (
+              <span className="badge badge-notpaid">NOT trulyPaid</span>
+            )}
           </h2>
+          <div className={honestyClass(prem.contentKind, prem.trulyPaid)}>
+            {prem.honestyBanner}
+          </div>
           <p className="sub">
             Brain may pay a tiny x402 amount (well under ${prem.documentedCapUsd}/day cap) for a
-            labeled premium signal when free news is low-confidence or conflicting.
+            labeled premium signal when free news is low-confidence or conflicting. Live PENDING
+            content is SIMULATED only — never claim a live PAID fill.
           </p>
           <p className="mono">
-            attempted={String(prem.attempted)} · status={prem.paymentStatus} · notional=$
+            attempted={String(prem.attempted)} · status={prem.paymentStatus} · contentKind=
+            {prem.contentKind} · trulyPaid={String(prem.trulyPaid)} · notional=$
             {prem.notionalUsd}
             {prem.paymentId ? ` · id=${prem.paymentId}` : ""}
             <br />

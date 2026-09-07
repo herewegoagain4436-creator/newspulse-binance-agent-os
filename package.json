@@ -12,7 +12,8 @@
     "cli": "tsx src/cli/index.ts",
     "agent:once": "tsx src/cli/index.ts once",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "live": "tsx src/cli/demo.ts"
+    "live": "tsx src/cli/demo.ts",
+    "judge": "tsx src/cli/demo.ts --judge"
   },
   "dependencies": {
     "react": "^18.3.1",

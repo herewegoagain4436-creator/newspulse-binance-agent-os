@@ -43,3 +43,11 @@ button:disabled { opacity: 0.5; cursor: wait; }
 .disclaimer { margin-top: 18px; color: var(--muted); font-size: 0.8rem; line-height: 1.45; border-top: 1px solid var(--border); padding-top: 14px; }
 .score-pos { color: var(--buy); }
 .score-neg { color: var(--sell); }
+
+.banner { margin: 8px 0 12px; padding: 10px 12px; border-radius: 10px; font-family: var(--mono); font-size: 0.78rem; line-height: 1.4; border: 1px solid var(--border); }
+.banner-simulated { background: #2a1f08; border-color: #f0b90b; color: #f0d78c; }
+.banner-paid { background: #0d2a1c; border-color: var(--buy); color: #9aefc4; }
+.banner-none { background: #2a1218; border-color: var(--sell); color: #f5a3ae; }
+.badge-paid { border-color: var(--buy); color: var(--buy); }
+.badge-notpaid { border-color: #f0b90b; color: #f0b90b; }
+.rationale-head { color: var(--accent); font-size: 0.8rem; margin-top: 6px; font-weight: 600; }

@@ -9,3 +9,4 @@ coverage/
 # local demo capture artifacts
 demo/live_frames/
 demo/capture/
+.grok/

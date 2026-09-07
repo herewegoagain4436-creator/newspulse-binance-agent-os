@@ -1,13 +1,15 @@
 # NewsPulse live smoke guide
 
-Product loop: brain scores free news, optional tiny x402 premium signal, risk gates, live MCP and BAW.
+Product loop: conflicting free news -> optional tiny x402 premium -> rescore -> risk -> live MCP and BAW.
 
-Install deps, then run the demo script and the Vite dashboard.
+Install deps, then run package scripts `judge` (preferred for judges; prints checklist) or `demo`.
 
-Expect: premium attempt status (paid/pending/rejected), MCP/BAW pending or auth reject, never silent paper fills in live.
+Expect: premium PENDING/REJECTED (or paper/mock paid), MCP/BAW pending or auth reject, honesty banner if content is SIMULATED after PENDING, template rationales, never silent paper fills in live.
+
+PENDING/REJECTED without OAuth = successful wiring to Agent OS.
 
 MCP hosts are flexible (Grok is one example). BAW documented x402 cap about 20 USD/day; payments stay 1 to 5 USD.
 
-Details: AGENT_OS_NOTES.md
+Details: JUDGE.md · AGENT_OS_NOTES.md
 
 Disclaimer: not financial advice.

@@ -26,6 +26,7 @@ import {
   sideFromScore,
   type RiskState,
 } from "./risk.js";
+import { attachRationales, explainRunSummary } from "./reasoning.js";
 import { scoreNews } from "./scorer.js";
 import type {
   AgentRunResult,
@@ -144,6 +145,9 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
       label: attempt.label,
       contentApplied: attempt.contentApplied,
       contentNote: attempt.contentNote,
+      contentKind: attempt.contentKind,
+      trulyPaid: attempt.trulyPaid,
+      honestyBanner: attempt.honestyBanner,
       sourceLabel: attempt.hints?.sourceLabel,
       symbols: attempt.hints?.symbols,
       sentiment: attempt.hints?.sentiment,
@@ -250,9 +254,15 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
     bawLastActionLabel: bawLastLabel,
   });
 
+  const decisionsWithRationales = attachRationales(decisions);
+  const runNarrative = explainRunSummary({
+    mode: facade.mode,
+    decisions: decisionsWithRationales,
+    premium: premiumSummary,
+  });
   return {
     mode: facade.mode,
-    decisions,
+    decisions: decisionsWithRationales,
     scores,
     scoresBeforePremium,
     market: ticks,
@@ -261,6 +271,7 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
     adapterMeta,
     bawAction,
     premiumSignal: premiumSummary,
+    runNarrative,
   };
 }
 

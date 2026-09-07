@@ -14,7 +14,12 @@ import {
   type BawX402Ack,
 } from "../adapters/bawAgenticWallet.js";
 import { envBool, envNum, envStr } from "./env.js";
-import type { NewsItem, SymbolId, SymbolScore } from "./types.js";
+import type {
+  NewsItem,
+  PremiumContentKind,
+  SymbolId,
+  SymbolScore,
+} from "./types.js";
 
 export type PremiumPaymentStatus =
   | "SKIPPED"
@@ -42,10 +47,43 @@ export interface PremiumSignalAttempt {
   /** True when fixture content was merged into the brain (honest about why) */
   contentApplied: boolean;
   contentNote?: string;
+  contentKind: PremiumContentKind;
+  trulyPaid: boolean;
+  honestyBanner: string;
   hints?: PremiumSignalHints;
   remainingX402CapUsd?: number;
   documentedCapUsd: number;
   rawAck?: BawX402Ack;
+}
+
+/** Crystal-clear UI/CLI banner — never claim live PAID fill */
+export function buildPremiumHonestyBanner(opts: {
+  paymentStatus: PremiumPaymentStatus;
+  contentApplied: boolean;
+  contentKind: PremiumContentKind;
+  trulyPaid: boolean;
+  notionalUsd: number;
+}): string {
+  const { paymentStatus, contentApplied, contentKind, trulyPaid, notionalUsd } = opts;
+  if (paymentStatus === "SKIPPED") {
+    return "PREMIUM: SKIPPED — free news sufficient; no x402 charge.";
+  }
+  if (paymentStatus === "REJECTED") {
+    return "PREMIUM: REJECTED (auth/hub) — NO content applied · NOT paid · integrate Agentic Hub to pay.";
+  }
+  if (paymentStatus === "PENDING") {
+    if (contentApplied && contentKind === "simulated_after_pending") {
+      return `PREMIUM: LIVE x402 PENDING ~$${notionalUsd} — content is SIMULATED after pending ack · NOT a paid fill · do not treat as PAID.`;
+    }
+    return `PREMIUM: LIVE x402 PENDING ~$${notionalUsd} — awaiting hub confirm · NOT paid.`;
+  }
+  if (paymentStatus === "PAID_PAPER") {
+    return `PREMIUM: PAID_PAPER ~$${notionalUsd} (explicit paper mode) — fixture content · not live.`;
+  }
+  if (paymentStatus === "PAID_MOCK") {
+    return `PREMIUM: PAID_MOCK ~$${notionalUsd} (explicit mock mode) — fixture content · not live.`;
+  }
+  return `PREMIUM: status=${paymentStatus} trulyPaid=${trulyPaid}`;
 }
 
 export interface PremiumSignalOptions {
@@ -187,6 +225,14 @@ export async function maybeFetchPremiumSignal(
   const decision = shouldBuyPremiumSignal(scores, news, opts);
 
   if (!decision.buy) {
+    const contentKind: PremiumContentKind = "none";
+    const honestyBanner = buildPremiumHonestyBanner({
+      paymentStatus: "SKIPPED",
+      contentApplied: false,
+      contentKind,
+      trulyPaid: false,
+      notionalUsd,
+    });
     return {
       attempted: false,
       reason: decision.reason,
@@ -194,6 +240,9 @@ export async function maybeFetchPremiumSignal(
       paymentStatus: "SKIPPED",
       label: `x402 premium skipped — ${decision.reason}`,
       contentApplied: false,
+      contentKind,
+      trulyPaid: false,
+      honestyBanner,
       documentedCapUsd,
     };
   }
@@ -208,30 +257,47 @@ export async function maybeFetchPremiumSignal(
   const paymentStatus = paymentStatusFromAck(ack.status);
 
   // Content policy:
-  // - paper/mock: apply fixture content (payment was local/mock)
-  // - live PENDING: may simulate signal *content* after pending ack (explicitly labeled)
+  // - paper/mock: apply fixture content (payment was local/mock) → trulyPaid for that mode only
+  // - live PENDING: may simulate signal *content* after pending ack (explicitly labeled SIMULATED)
   // - live REJECTED: never apply content or claim payment success
+  // Never claim PAID fill in live.
   const mode = baw.mode;
   let contentApplied = false;
   let contentNote: string | undefined;
+  let contentKind: PremiumContentKind = "none";
+  let trulyPaid = false;
   let hints: PremiumSignalHints | undefined;
 
   if (paymentStatus === "PAID_PAPER" || paymentStatus === "PAID_MOCK") {
     hints = { ...FIXTURE_PREMIUM_HINTS };
     contentApplied = true;
-    contentNote = `${mode} mode — fixture premium content applied after ${paymentStatus}`;
+    contentKind = "paid_fixture";
+    trulyPaid = true; // paid only within explicit paper/mock — not live
+    contentNote = `${mode} mode — fixture premium content applied after ${paymentStatus} (not a live fill)`;
   } else if (paymentStatus === "PENDING") {
-    // Explicitly allowed: simulate content after live pending ack (not a fill claim)
+    // Explicitly allowed: simulate content after live pending ack (NOT a fill claim)
     hints = { ...FIXTURE_PREMIUM_HINTS };
     contentApplied = true;
+    contentKind = "simulated_after_pending";
+    trulyPaid = false;
     contentNote =
-      "LIVE x402 PENDING — simulating premium signal content for brain merge; payment not filled";
+      "LIVE x402 PENDING — SIMULATED premium signal content for brain merge only; payment NOT filled; NOT PAID";
   } else {
     // REJECTED
     contentApplied = false;
+    contentKind = "none";
+    trulyPaid = false;
     contentNote =
-      "LIVE x402 REJECTED — no premium content applied; authenticate Agentic Hub to pay";
+      "LIVE x402 REJECTED — no premium content applied; authenticate Agentic Hub to pay; NOT PAID";
   }
+
+  const honestyBanner = buildPremiumHonestyBanner({
+    paymentStatus,
+    contentApplied,
+    contentKind,
+    trulyPaid,
+    notionalUsd,
+  });
 
   return {
     attempted: true,
@@ -242,6 +308,9 @@ export async function maybeFetchPremiumSignal(
     label: ackRes.label,
     contentApplied,
     contentNote,
+    contentKind,
+    trulyPaid,
+    honestyBanner,
     hints,
     remainingX402CapUsd: ack.remainingX402CapUsd,
     documentedCapUsd,

@@ -1,6 +1,6 @@
 # Binance Agent OS — Notes for NewsPulse
 
-Agent OS has two rails. NewsPulse uses both. The brain (rules/lexicon/scorer) does not require an LLM; MCP hosts such as Grok are optional examples for CEX execution.
+Agent OS has two rails. NewsPulse uses both. The brain (rules/lexicon/scorer) does not require an LLM; optional src/core/reasoning.ts emits template rationales. MCP hosts such as Grok are optional examples for CEX execution (host-flexible).
 
 ## Product loop
 1. Brain evaluates free/fixture news
@@ -21,7 +21,7 @@ Agent OS has two rails. NewsPulse uses both. The brain (rules/lexicon/scorer) do
 - NewsPulse premium payments stay $1-5
 - Adapter: src/adapters/bawAgenticWallet.ts (payX402)
 - Premium module: src/core/premiumSignal.ts
-- Honesty: fixture premium content in paper/mock, or labeled simulate-after-pending on live pending ack — never claim a live x402 fill that did not happen
+- Honesty: fixture premium content in paper/mock, or labeled simulate-after-pending on live pending ack — never claim a live x402 fill that did not happen. Fields: honestyBanner, contentKind, trulyPaid (false on live PENDING/REJECTED).
 
 ## Dual-rail facade
 src/adapters/agentOsFacade.ts — MCP for CEX + BAW for wallet/on-chain and x402 premium.

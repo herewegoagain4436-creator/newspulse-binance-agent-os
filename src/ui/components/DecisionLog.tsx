@@ -3,14 +3,14 @@ import type { Decision } from "../../core/types";
 export function DecisionLog({ decisions }: { decisions: Decision[] }) {
   return (
     <>
-      <h2>Decision log</h2>
+      <h2>Decision log + rationales</h2>
       <table>
         <thead>
           <tr>
             <th>Side</th>
             <th>Symbol</th>
             <th>Size</th>
-            <th>Status</th>
+            <th>Status / rationale</th>
           </tr>
         </thead>
         <tbody>
@@ -22,6 +22,12 @@ export function DecisionLog({ decisions }: { decisions: Decision[] }) {
               <td>
                 <span className="mono">{d.executed ? "EXEC" : "skip"}</span>
                 <div className="reason">{d.mockLabel ?? d.rejectReason ?? ""}</div>
+                {d.rationale ? (
+                  <>
+                    <div className="rationale-head">{d.rationale.headline}</div>
+                    <div className="reason">{d.rationale.narrative}</div>
+                  </>
+                ) : null}
               </td>
             </tr>
           ))}

@@ -1,11 +1,15 @@
 # NewsPulse — Track A (Binance Agent OS Mini Hackathon 2026)
 
+## Hook (one line)
+**Conflicting free news → x402 micropay → rescore → risk → live MCP/BAW.**
+MCP hosts are flexible (Grok is an example only). The brain does not require an LLM; optional `reasoning.ts` adds template rationales.
+
 ## Product
 NewsPulse has its own **brain** (rules / lexicon / scorer — not requiring an LLM). Flow:
 
 1. Brain evaluates free / fixture news
 2. When useful, pay a small amount via **x402** for a **premium signal**
-3. Feed premium signal into the brain
+3. Feed premium signal into the brain (honesty: SIMULATED after live PENDING ≠ PAID)
 4. Brain decides BUY/SELL/HOLD with risk gates
 5. Act via live Agent OS: **MCP (CEX)** and/or **BAW** — live default; no silent paper fills; pending confirm / clear auth reject OK
 
@@ -25,8 +29,8 @@ Excluded stables: USDT, USDC, DAI, FDUSD, TUSD, USDE, etc.
 ## Defaults
 - **Live** mode (`NEWSPULSE_MODE=live`)
 - Premium x402 notional tiny ($1–5) under documented ~$20/day cap
-- Dual adapters + x402 premium status visible in dashboard + live smoke CLI
+- Dual adapters + x402 premium status visible in dashboard + package script `judge`
 - Auth/hub failures are explicit — never unlabeled paper success in live
 - Paper/mock only when explicitly opted in
 
-See README.md, DEMO.md, AGENT_OS_NOTES.md.
+See README.md, JUDGE.md, DEMO.md, AGENT_OS_NOTES.md.

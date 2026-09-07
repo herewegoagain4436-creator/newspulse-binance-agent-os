@@ -50,6 +50,14 @@ export interface MarketTick {
   asOf: string;
 }
 
+export interface DecisionRationale {
+  symbol: string;
+  side: Side;
+  headline: string;
+  narrative: string;
+  factors: string[];
+}
+
 export interface Decision {
   id: string;
   at: string;
@@ -64,6 +72,8 @@ export interface Decision {
   executed: boolean;
   rejectReason?: string;
   mockLabel?: string;
+  /** Template/explainable NL rationale (no LLM) */
+  rationale?: DecisionRationale;
 }
 
 export interface Position {
@@ -127,6 +137,11 @@ export interface BawActionSummary {
 }
 
 /** x402 premium-signal attempt summary (brain may pay for labeled premium) */
+export type PremiumContentKind =
+  | "none"
+  | "paid_fixture"       // paper/mock: fixture after local/mock payment
+  | "simulated_after_pending"; // live PENDING: simulated content only — NOT paid
+
 export interface PremiumSignalSummary {
   attempted: boolean;
   reason: string;
@@ -136,6 +151,12 @@ export interface PremiumSignalSummary {
   label: string;
   contentApplied: boolean;
   contentNote?: string;
+  /** Honesty: how content was sourced — never claim live PAID fill */
+  contentKind: PremiumContentKind;
+  /** True only for explicit paper/mock PAID_* — never true on live PENDING */
+  trulyPaid: boolean;
+  /** Crystal-clear banner for UI/CLI */
+  honestyBanner: string;
   sourceLabel?: "premium/x402";
   symbols?: SymbolId[];
   sentiment?: number;
@@ -157,4 +178,6 @@ export interface AgentRunResult {
   bawAction?: BawActionSummary | null;
   /** x402 premium signal attempt (paid / pending / rejected / skipped) */
   premiumSignal?: PremiumSignalSummary | null;
+  /** Template/explainable run narrative (no LLM) */
+  runNarrative?: string;
 }
