@@ -10,13 +10,13 @@ export function App() {
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const universe = useMemo(() => describeUniverse(), []);
-  const dualPreview = useMemo(() => new AgentOsFacade({ mode: "paper" }).dualStatus(), []);
+  const dualPreview = useMemo(() => new AgentOsFacade().dualStatus(), []);
 
   async function runOnce() {
     setLoading(true);
     setError(null);
     try {
-      const facade = new AgentOsFacade({ mode: "paper" });
+      const facade = new AgentOsFacade();
       const r = await runAgentOnce({
         adapter: facade,
         seedPositions: {
@@ -46,12 +46,12 @@ export function App() {
           </h1>
           <p className="sub">
             Track A: news to scores to risk-checked decisions for top-10 non-stables.
-            Dual-rail Agent OS: MCP (CEX) + BAW (Wallet). Paper/sim default; mocks labeled.
+            Dual-rail Agent OS: MCP (CEX) + BAW (Wallet). Live default; trades need confirmation.
           </p>
           <p className="sub mono">Universe: {universe}</p>
         </div>
         <div className="actions">
-          <span className="badge">mode: paper</span>
+          <span className="badge">mode: live</span>
           <span className="badge">MCP + BAW</span>
           <button onClick={runOnce} disabled={loading}>
             {loading ? "Running..." : "Run agent once"}
@@ -90,8 +90,8 @@ export function App() {
         <div className="card">
           <h2>Ready</h2>
           <p className="sub">
-            Click Run agent once to score fixtures, paper-fill via MCP, and show a BAW wallet
-            action when news implies on-chain.
+            Click Run agent once to score fixtures, submit via live MCP (pending confirm or
+            clear auth error), and show a BAW wallet action when news implies on-chain.
           </p>
         </div>
       ) : null}
@@ -99,10 +99,9 @@ export function App() {
       {result ? <AppBody result={result} conc={conc} pnl={pnl} /> : null}
 
       <p className="disclaimer">
-        Disclaimer: hackathon demo only, not financial advice. Paper/mock fills are not live
-        Binance orders. Agent OS uses OAuth (MCP) + Agentic Hub (BAW). Live trades need
-        confirmation. Documented BAW caps are public defaults — confirm in App. See
-        AGENT_OS_NOTES.md.
+        Disclaimer: not financial advice. Live Agent OS trades require user confirmation and
+        OAuth (MCP oauth_client_id=grok) + Agentic Hub (BAW). No fake live fills. Documented
+        BAW caps are public defaults — confirm in App. See AGENT_OS_NOTES.md.
       </p>
     </div>
   );

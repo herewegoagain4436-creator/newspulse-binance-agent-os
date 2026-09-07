@@ -11,7 +11,7 @@ export function PortfolioPanel({
 }) {
   return (
     <>
-      <h2>Paper portfolio / PnL</h2>
+      <h2>Portfolio / PnL</h2>
       <p className="mono">
         cash ${portfolio.cashUsdt.toFixed(2)} · equity ${portfolio.equityUsd.toFixed(2)} · realized $
         {portfolio.realizedPnl.toFixed(2)}

@@ -37,7 +37,7 @@ export interface AgentOptions {
   risk?: RiskConfig;
   /** Prefer dual-rail facade; bare MCP adapter still accepted for back-compat */
   adapter?: AgentOsFacade | BinanceAgentOsAdapter;
-  /** Seed positions so SELL can execute in demo */
+  /** Seed positions so SELL paths can be evaluated */
   seedPositions?: Partial<Record<SymbolId, { qty: number; avgPrice: number }>>;
   defaultOrderUsd?: number;
   /** Run optional BAW wallet leg when news implies on-chain (default true) */
@@ -111,7 +111,7 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
   const scores = scoreNews(news);
   const decisions: Decision[] = [];
 
-  // Process strongest absolute scores first for clearer demo fills
+  // Process strongest absolute scores first
   const ranked = [...scores].sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
 
   for (const s of ranked) {
@@ -137,8 +137,24 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
     if (decided.executed) {
       const exec = await facade.executeDecision(decided);
       decided.mockLabel = `MCP: ${exec.label}`;
-      portfolio = applyDecision(portfolio, decided);
-      recordTrade(riskState, decided.symbol);
+      const ackStatus = exec.data?.status;
+      // Local portfolio ledger only for explicit paper/mock fills — never invent live fills.
+      const localFill =
+        ackStatus === "FILLED_PAPER" || ackStatus === "SUBMITTED_MOCK";
+      if (localFill) {
+        portfolio = applyDecision(portfolio, decided);
+        recordTrade(riskState, decided.symbol);
+      } else if (
+        ackStatus === "SUBMITTED_LIVE_PENDING_CONFIRM" ||
+        ackStatus === "REJECTED"
+      ) {
+        // Keep executed=true for visibility of the attempt; risk trade count only on local fill.
+        decided.rejectReason =
+          decided.rejectReason ??
+          (ackStatus === "REJECTED"
+            ? exec.label
+            : "awaiting Agent OS user confirmation");
+      }
     } else if (side !== "HOLD") {
       decided.mockLabel = `skipped: ${decided.rejectReason}`;
     } else {
@@ -180,7 +196,7 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
     }
   }
 
-  const mcpUsedMock = marketRes.usedMock || facade.mode !== "live";
+  const mcpUsedMock = facade.mode === "live" ? false : marketRes.usedMock;
   const adapterMeta = facade.buildMeta({
     mcpUsedMock,
     bawUsedMock,

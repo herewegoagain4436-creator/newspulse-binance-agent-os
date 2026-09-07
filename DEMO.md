@@ -1,4 +1,4 @@
-# NewsPulse — Demo guide
+# NewsPulse — Live runbook / smoke guide
 
 ## Quick start
 
@@ -10,9 +10,9 @@ npm run demo
 
 Expected:
 1. Fixture news scored across the top-10 non-stable universe
-2. At least one executed BUY and one executed SELL on different assets (**MCP paper** path)
-3. At least one **BAW** paper/mock wallet action (dual-rail visibility)
-4. Exit 0 on PASS
+2. Dual-rail status shows MCP + BAW in live mode (oauth_client_id=grok)
+3. MCP/BAW return pending-confirm OR clear auth REJECTED — never silent FILLED_PAPER in live
+4. Exit 0 on PASS (no paper BUY/SELL fill asserts)
 
 ## Dashboard
 
@@ -22,14 +22,14 @@ npm run dev
 
 Open the Vite URL, click Run agent once. Adapter cards show **MCP** and **BAW** statuses side by side.
 
-## What the demo shows
+## What the live smoke shows
 
 1. Multi-asset news mapping (BTC ETF bullish, SOL DeFi exploit bearish, etc.)
 2. Explainable per-symbol scores and reasons
 3. Risk gates: max position, daily trades, cooldown, concentration, kill-switch
-4. Paper portfolio PnL per asset
-5. **MCP** adapter label: PAPER SIM / MOCK (CEX orders)
-6. **BAW** adapter: paper/mock swap under documented daily caps when news implies on-chain
+4. Portfolio snapshot (local ledger only for explicit paper/mock opt-in)
+5. **MCP** adapter: live pending confirm or actionable auth error
+6. **BAW** adapter: live pending/auth reject under documented daily caps when news implies on-chain
 
 ## Agent OS (both rails)
 
@@ -41,11 +41,11 @@ Open the Vite URL, click Run agent once. Adapter cards show **MCP** and **BAW** 
 
 ### BAW (Wallet / Agentic Hub)
 - Hub: https://web3.binance.com/agentic-hub
-- Paper/mock: balance, quote swap, execute swap within documented daily caps, kill-switch
+- Live: pending confirm or clear auth/hub error; paper/mock opt-in only
 - Documented defaults (public materials): ~$50k/day swaps, ~$100k/day DeFi, $20/day x402 — **not guarantees**; confirm in App
 
 Details: AGENT_OS_NOTES.md
 
 ## Disclaimer
 
-Not financial advice. Paper/mock is not live Binance execution.
+Not financial advice. Live trades require Agent OS confirmation. Missing auth fails clearly. Paper/mock are opt-in only.

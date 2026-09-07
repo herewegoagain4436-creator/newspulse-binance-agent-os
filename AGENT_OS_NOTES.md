@@ -50,7 +50,7 @@ From public Agent OS / Agentic Wallet materials. **Confirm live quotas in Binanc
 Quotas are independent (DeFi does not consume the regular swap bucket). Settings are read-only via CLI tools; change in the Binance Wallet App.
 
 Adapter: `src/adapters/bawAgenticWallet.ts`  
-Paper/mock interface: balance, quote swap, execute swap within daily cap, kill-switch.
+Live interface: hub probe / pending confirm; clear auth reject when unavailable. Paper/mock only if NEWSPULSE_MODE=paper|mock.
 
 ## Dual-rail facade
 
@@ -61,9 +61,9 @@ Paper/mock interface: balance, quote swap, execute swap within daily cap, kill-s
 
 ## NewsPulse usage
 
-- Default mode: **paper/sim** (local fills / local wallet ledger). No live orders unless `NEWSPULSE_MODE=live` and OAuth MCP / hub is reachable.
-- When live MCP or BAW is unavailable, adapters return **explicitly labeled MOCK** responses.
-- This project does **not** invent Binance guarantees. Paper ≠ live. Mock ≠ live. Documented caps ≠ contractual SLAs.
+- Default mode: **live** (`NEWSPULSE_MODE=live`). Live orders go through OAuth MCP / Agentic Hub and require confirmation.
+- When live MCP or BAW is unavailable in-process, adapters return **REJECTED** with an actionable auth/hub message — not unlabeled paper fills. Paper/mock are opt-in only.
+- This project does **not** invent Binance guarantees or fake live fills. Documented caps ≠ contractual SLAs.
 
 ## Official docs
 
@@ -75,5 +75,5 @@ Paper/mock interface: balance, quote swap, execute swap within daily cap, kill-s
 ## Safety
 
 - Never put Binance API secret keys in `.env` for Agent OS — MCP auth is OAuth.
-- Prefer paper mode for demos and hackathon judging.
+- Prefer **live** with confirmation for real Agent OS usage; use paper/mock only when explicitly testing local ledgers.
 - Kill-switch and risk limits in NewsPulse apply before MCP orders; BAW has its own kill-switch + documented daily-cap checks.

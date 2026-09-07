@@ -13,7 +13,7 @@ Binance Agent OS has **both** rails — NewsPulse wires both:
 | **MCP** | CEX: market data, agentic sub-account, spot/futures under confirmations | `https://agent.binance.com/mcp/agentic` (`oauth_client_id=grok`) |
 | **BAW** | Wallet / on-chain: Agentic Hub swaps & DeFi-style flows with daily caps | `https://web3.binance.com/agentic-hub` |
 
-Paper/mock when live is unavailable; every mock path is labeled.
+**Live is the default.** Missing OAuth/MCP/hub fails with actionable auth errors — no silent paper fills.
 
 ## Features
 
@@ -21,10 +21,10 @@ Paper/mock when live is unavailable; every mock path is labeled.
 - Explainable scoring with keyword lexicon + symbol mapping + fixture sentiment hints
 - Risk: max position per asset, max daily trades, cooldown, portfolio concentration, kill-switch
 - **MCP adapter** — OAuth (`oauth_client_id=grok`), no API keys on device
-- **BAW adapter** — paper/mock wallet ops (balance, quote/execute swap within documented daily caps, kill-switch)
+- **BAW adapter** — live Agentic Hub path (pending confirm / auth reject); paper/mock opt-in only
 - Dual-rail facade + dashboard statuses for both adapters
-- Vite + React dashboard + CLI demo
-- `npm run demo` asserts BUY+SELL on MCP paper path **and** at least one BAW wallet action
+- Vite + React dashboard + CLI live smoke
+- `npm run demo` (live smoke) checks dual-rail live status + agent loop — not paper BUY/SELL fills
 
 ## Architecture
 
@@ -33,19 +33,19 @@ flowchart LR
   News[News fixtures / feed] --> Scorer[Explainable scorer]
   Scorer --> Risk[Risk gates]
   Risk --> Decision[BUY / SELL / HOLD]
-  Decision --> MCP[MCP adapter — CEX]
-  Decision -.->|on-chain news| BAW[BAW adapter — Wallet]
-  MCP --> Paper[Paper portfolio]
-  BAW --> WalletLedger[Paper / mock wallet ledger]
+  Decision --> MCP[MCP adapter — CEX live]
+  Decision -.->|on-chain news| BAW[BAW adapter — Wallet live]
+  MCP --> Pending[SUBMITTED_LIVE_PENDING_CONFIRM]
+  BAW --> HubPending[LIVE pending / auth reject]
   MCP -.->|OAuth MCP| BinanceMcp[agent.binance.com/mcp/agentic]
   BAW -.->|Agentic Hub| BinanceBaw[web3.binance.com/agentic-hub]
-  Paper --> UI[Dashboard + CLI]
-  WalletLedger --> UI
+  Pending --> UI[Dashboard + CLI]
+  HubPending --> UI
 ```
 
 ## Quick start
 
-> **Paper/sim only — no live txs.** Keep `NEWSPULSE_MODE=paper` for demos and judging.
+> **Live default.** Keep `NEWSPULSE_MODE=live`. Live trades still require Agent OS confirmation. Without OAuth expect clear auth errors — not fake fills.
 
 ```bash
 git clone https://github.com/herewegoagain4436-creator/newspulse-binance-agent-os.git
@@ -55,7 +55,7 @@ npm run demo
 npm run dev
 ```
 
-Copy `.env.example` to `.env` if you want to tweak thresholds. Keep `NEWSPULSE_MODE=paper` for demos.
+Copy `.env.example` to `.env` if you want to tweak thresholds. Keep `NEWSPULSE_MODE=live` unless you explicitly opt into `paper` or `mock`.
 
 ## Agent OS usage
 
@@ -75,7 +75,7 @@ BAW hub (wallet): https://web3.binance.com/agentic-hub
 
 | Script | Purpose |
 |--------|--------|
-| `npm run demo` | Fixture loop with BUY+SELL (MCP) + BAW wallet action |
+| `npm run demo` | Live smoke: agent loop + dual-rail status (pending confirm or auth errors) |
 | `npm run dev` | Vite dashboard |
 | `npm run cli` / `npm run agent:once` | JSON once-run |
 | `npm run build` | Typecheck + Vite build |
@@ -83,14 +83,14 @@ BAW hub (wallet): https://web3.binance.com/agentic-hub
 ## Key files
 
 - `src/core/` — universe, scorer, risk, portfolio, agent loop
-- `src/adapters/binanceAgentOs.ts` — MCP CEX adapter (paper/mock/live)
+- `src/adapters/binanceAgentOs.ts` — MCP CEX adapter (live default; paper/mock opt-in)
 - `src/adapters/bawAgenticWallet.ts` — BAW wallet / Agentic Hub adapter
 - `src/adapters/agentOsFacade.ts` — dual-rail facade (MCP + BAW)
-- `src/cli/demo.ts` — demo runner
+- `src/cli/demo.ts` — live smoke runner
 - `src/ui/` — React dashboard (both adapter statuses)
 - `src/data/fixtures/` — news + market snapshots
 - `AGENT_OS_NOTES.md`, `DEMO.md`, `BRIEF.md`
 
 ## Disclaimer
 
-Not financial advice. Paper and mock fills are **not** live Binance orders. Live Agent OS trades require user confirmation; the agentic sub-account starts empty and has no withdrawal scope. BAW daily caps cited in-code are **documented defaults** from public materials (e.g. ~$50k swaps / ~$100k DeFi / $20 x402) — **not invented guarantees**; confirm live quotas in the Binance App / wallet settings.
+Not financial advice. Live Agent OS trades require user confirmation. This app does **not** invent fake live fills. Paper/mock are opt-in only; the agentic sub-account starts empty and has no withdrawal scope. BAW daily caps cited in-code are **documented defaults** from public materials (e.g. ~$50k swaps / ~$100k DeFi / $20 x402) — **not invented guarantees**; confirm live quotas in the Binance App / wallet settings.

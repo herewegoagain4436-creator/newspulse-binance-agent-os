@@ -134,7 +134,7 @@ export class AgentOsFacade {
 
   /**
    * Optional on-chain leg when news implies DeFi / wallet / bridge / exploit, etc.
-   * Paper/mock only unless live BAW is wired in-host.
+   * Live is default; pending confirm or clear auth reject if hub unavailable.
    */
   async maybeOnChainWalletAction(opts: {
     newsTexts: string[];
@@ -154,7 +154,7 @@ export class AgentOsFacade {
     }
 
     const notionalUsd = opts.notionalUsd ?? 25;
-    // Demo-safe tiny swap under documented x402-scale awareness; still under $50k swap cap.
+    // Small notional under documented x402-scale awareness; still under $50k swap cap.
     const fromAsset = opts.preferFrom ?? "USDT";
     const toAsset = opts.preferTo ?? "ETH";
     const amountIn = notionalUsd; // USDT notional

@@ -4,7 +4,9 @@
  * Hub: https://web3.binance.com/agentic-hub
  * On-chain / wallet ops for agents: swaps, DeFi-style flows, agentic wallet with daily caps.
  *
- * Default: paper/sim. When live hub is unavailable, returns explicitly labeled MOCK.
+ * Default: live (NEWSPULSE_MODE=live). Paper/mock are explicit opt-in only.
+ * Live path requires Binance Wallet Agentic Hub availability; missing hub/auth fails clearly —
+ * never unlabeled paper fills or silent MOCK success in live mode.
  * Documented daily caps below are from public Agent OS / Agentic Wallet materials —
  * labeled as documented defaults, NOT invented guarantees. Actual quotas are set by
  * Binance and visible via wallet settings / Binance App.
@@ -73,9 +75,9 @@ export interface BawSwapAck {
 }
 
 function modeFromEnv(): BawMode {
-  const m = envStr("NEWSPULSE_MODE", "paper").toLowerCase();
+  const m = envStr("NEWSPULSE_MODE", "live").toLowerCase();
   if (m === "live" || m === "mock" || m === "paper") return m;
-  return "paper";
+  return "live";
 }
 
 function utcDayKey(d = new Date()): string {
@@ -103,9 +105,15 @@ export class BawAgenticWalletAdapter {
 
   metaLabel(usedMock: boolean): string {
     if (this.mode === "paper") {
-      return "PAPER SIM (BAW) — local wallet ops; Agentic Hub unused";
+      return "PAPER SIM (BAW, opt-in) — local wallet ops; Agentic Hub unused";
     }
-    if (this.mode === "mock" || usedMock) {
+    if (this.mode === "mock") {
+      return "MOCK (BAW) — Agentic Hub not in-process; not live on-chain";
+    }
+    if (this.mode === "live") {
+      return "LIVE via Binance Wallet Agentic Hub — swaps/DeFi under documented daily caps + App confirmations";
+    }
+    if (usedMock) {
       return "MOCK (BAW) — Agentic Hub not in-process; not live on-chain";
     }
     return "LIVE via Binance Wallet Agentic Hub — swaps/DeFi under documented daily caps + App confirmations";
@@ -158,14 +166,29 @@ export class BawAgenticWalletAdapter {
     const data: BawBalance[] = Object.entries(this.balances).map(
       ([asset, free]) => ({ asset, free, locked: 0 })
     );
-    const usedMock = this.mode !== "live";
+    if (this.mode === "paper") {
+      return {
+        data,
+        usedMock: false,
+        label: "PAPER SIM balances (BAW local ledger, opt-in)",
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
+    if (this.mode === "mock") {
+      return {
+        data,
+        usedMock: true,
+        label: "MOCK balances (opt-in) — not live Agentic Hub",
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
     return {
       data,
-      usedMock,
+      usedMock: false,
       label:
-        this.mode === "paper"
-          ? "PAPER SIM balances (BAW local ledger)"
-          : "MOCK balances — live Agentic Hub unavailable in-process",
+        "LIVE BAW balances — local cache only until hub session wired; not a paper fill",
       hubUrl: this.hubUrl,
       rail: "BAW",
     };
@@ -327,8 +350,7 @@ export class BawAgenticWalletAdapter {
       };
     }
 
-    if (this.mode === "mock" || this.mode === "live") {
-      // Live hub not wired in-process for hackathon demo — always labeled MOCK when not paper.
+    if (this.mode === "mock") {
       this.swapSpentUsd += opts.notionalUsd;
       return {
         data: {
@@ -339,7 +361,7 @@ export class BawAgenticWalletAdapter {
           amountIn: opts.amountIn,
           amountOut,
           notionalUsd: opts.notionalUsd,
-          requiresConfirmation: this.mode === "live",
+          requiresConfirmation: false,
           raw: {
             mock: true,
             note: "MOCK — Agentic Hub / BAW not available in-process; not a live on-chain swap",
@@ -348,7 +370,72 @@ export class BawAgenticWalletAdapter {
           },
         },
         usedMock: true,
-        label: "MOCK BAW swap ack — live hub unavailable in-process",
+        label: "MOCK BAW swap ack (opt-in mock mode)",
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
+
+    if (this.mode === "live") {
+      // Attempt hub reachability; in-process Node cannot complete wallet OAuth alone.
+      let hubReachable = false;
+      try {
+        const res = await fetch(this.hubUrl, {
+          method: "GET",
+          signal: AbortSignal.timeout(2500),
+        });
+        hubReachable = res.ok || res.status === 401 || res.status === 403;
+      } catch {
+        hubReachable = false;
+      }
+
+      if (!hubReachable) {
+        return {
+          data: {
+            swapId: `AUTH-BAW-${clientId}`,
+            status: "REJECTED",
+            fromAsset: from,
+            toAsset: to,
+            amountIn: opts.amountIn,
+            amountOut: 0,
+            notionalUsd: opts.notionalUsd,
+            requiresConfirmation: false,
+            raw: {
+              live: true,
+              authRequired: true,
+              note: "LIVE BAW auth/hub required — open Agentic Hub in Binance Wallet App / complete wallet agent auth. Not a paper fill.",
+              hubUrl: this.hubUrl,
+              documentedCapsUsd: BAW_DOCUMENTED_DAILY_CAPS_USD,
+            },
+          },
+          usedMock: false,
+          label:
+            "LIVE BAW auth required — Agentic Hub unavailable in-process; authenticate via Binance Wallet App",
+          hubUrl: this.hubUrl,
+          rail: "BAW",
+        };
+      }
+
+      // Hub reachable but in-process swap still needs wallet confirmation / session.
+      return {
+        data: {
+          swapId: `LIVE-PENDING-BAW-${clientId}`,
+          status: "SUBMITTED_LIVE_PENDING",
+          fromAsset: from,
+          toAsset: to,
+          amountIn: opts.amountIn,
+          amountOut,
+          notionalUsd: opts.notionalUsd,
+          requiresConfirmation: true,
+          raw: {
+            live: true,
+            note: "LIVE BAW submit pending — confirm in Binance Wallet / Agentic Hub; not a filled paper swap",
+            hubUrl: this.hubUrl,
+            documentedCapsUsd: BAW_DOCUMENTED_DAILY_CAPS_USD,
+          },
+        },
+        usedMock: false,
+        label: "LIVE BAW pending confirmation — confirm swap in Agentic Hub / App",
         hubUrl: this.hubUrl,
         rail: "BAW",
       };

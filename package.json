@@ -2,7 +2,7 @@
   "name": "newspulse",
   "version": "1.0.0",
   "private": true,
-  "description": "NewsPulse — news-driven multi-asset trading agent for Binance Agent OS Mini Hackathon 2026 (Track A)",
+  "description": "NewsPulse \u2014 news-driven multi-asset trading agent for Binance Agent OS Mini Hackathon 2026 (Track A)",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
     "demo": "tsx src/cli/demo.ts",
     "cli": "tsx src/cli/index.ts",
     "agent:once": "tsx src/cli/index.ts once",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "live": "tsx src/cli/demo.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

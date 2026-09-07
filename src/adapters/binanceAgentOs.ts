@@ -5,8 +5,8 @@
  * Auth: client OAuth (oauth_client_id=grok for Grok) — NO API keys on device.
  * Do not open the MCP URL in a browser.
  *
- * Default: paper/sim. Live only when NEWSPULSE_MODE=live and MCP+OAuth succeed.
- * All mock paths are explicitly labeled.
+ * Default: live (NEWSPULSE_MODE=live). Paper/mock are explicit opt-in only.
+ * Live path requires MCP host OAuth (oauth_client_id=grok). Missing auth fails clearly — never unlabeled paper fills.
  *
  * @see ./AGENT_OS_NOTES.md
  * @see https://developers.binance.com/en/docs/agent-native/mcp-server/agentic
@@ -50,14 +50,14 @@ export interface OrderAck {
 }
 
 function modeFromEnv(): AdapterMode {
-  const m = envStr("NEWSPULSE_MODE", "paper").toLowerCase();
+  const m = envStr("NEWSPULSE_MODE", "live").toLowerCase();
   if (m === "live" || m === "mock" || m === "paper") return m;
-  return "paper";
+  return "live";
 }
 
 /**
  * Probe MCP reachability. OAuth tokens live in the MCP host (e.g. Grok),
- * not as API keys in this app — so a bare fetch often fails; we then MOCK.
+ * not as API keys in this app — so a bare fetch often fails; live mode then rejects with auth required.
  */
 async function tryMcpToolsList(endpoint: string): Promise<boolean> {
   try {
@@ -92,6 +92,26 @@ function mockFill(req: OrderRequest): OrderAck {
       note: "MOCK — Agent OS MCP/OAuth not available in-process; not a live Binance order",
       pair: pairFor(req.symbol),
       oauthClientId: AGENT_OS_OAUTH_CLIENT_ID,
+    },
+  };
+}
+
+
+function liveAuthRequired(req: OrderRequest, reason: string): OrderAck {
+  return {
+    orderId: `AUTH-${req.clientOrderId}`,
+    status: "REJECTED",
+    filledQty: 0,
+    avgPrice: req.price,
+    requiresConfirmation: false,
+    raw: {
+      live: true,
+      authRequired: true,
+      reason,
+      note: "LIVE auth required — register Binance Agent OS MCP with oauth_client_id=grok in the MCP host (e.g. Grok). Do not open the MCP URL in a browser. Trades still need user confirmation after auth.",
+      pair: pairFor(req.symbol),
+      oauthClientId: AGENT_OS_OAUTH_CLIENT_ID,
+      endpoint: AGENT_OS_MCP_URL,
     },
   };
 }
@@ -135,9 +155,15 @@ export class BinanceAgentOsAdapter {
 
   metaLabel(usedMock: boolean): string {
     if (this.mode === "paper") {
-      return "PAPER SIM (default) — local fills; Agent OS OAuth unused";
+      return "PAPER SIM (opt-in) — local fills; Agent OS OAuth unused";
     }
-    if (this.mode === "mock" || usedMock) {
+    if (this.mode === "mock") {
+      return `MOCK — MCP OAuth (client_id=${this.oauthClientId}) not in-process; not live Binance`;
+    }
+    if (this.mode === "live") {
+      return "LIVE via Agent OS MCP — trades require user confirmation; sub-account must be funded in Binance UI";
+    }
+    if (usedMock) {
       return `MOCK — MCP OAuth (client_id=${this.oauthClientId}) not in-process; not live Binance`;
     }
     return "LIVE via Agent OS MCP — trades require user confirmation; sub-account must be funded in Binance UI";
@@ -145,21 +171,21 @@ export class BinanceAgentOsAdapter {
 
   async getMarketSnapshot(fallback: MarketTick[]): Promise<AdapterResult<MarketTick[]>> {
     const live = await this.resolveLive();
-    if (!live) {
+    if (this.mode === "live") {
       return {
         data: fallback,
-        usedMock: true,
-        label: "MOCK/fixture market snapshot (public ticker MCP not used)",
+        usedMock: false,
+        label: live
+          ? "Fixture market — wire MCP host public tickers when OAuth session is available"
+          : "Fixture market snapshot — live MCP public tickers require host OAuth",
         endpoint: this.endpoint,
         oauthClientId: this.oauthClientId,
       };
     }
-    // Live: would call public market tools (ticker/klines) via MCP host.
-    // Keep fixture fallback labeled until MCP tool names are bound in-host.
     return {
       data: fallback,
       usedMock: true,
-      label: "MOCK market — prefer MCP host public tickers when wired; fixture used for demo safety",
+      label: "Fixture market snapshot (paper/mock mode)",
       endpoint: this.endpoint,
       oauthClientId: this.oauthClientId,
     };
@@ -188,9 +214,13 @@ export class BinanceAgentOsAdapter {
     const live = await this.resolveLive();
     if (!live) {
       return {
-        data: mockFill(req),
-        usedMock: true,
-        label: "MOCK order ack — live MCP/OAuth unavailable in-process",
+        data: liveAuthRequired(
+          req,
+          "MCP tools/list unreachable without host OAuth session"
+        ),
+        usedMock: false,
+        label:
+          "LIVE auth required — MCP/OAuth unavailable in-process; add Agent OS MCP with oauth_client_id=grok",
         endpoint: this.endpoint,
         oauthClientId: this.oauthClientId,
       };
@@ -235,11 +265,13 @@ export class BinanceAgentOsAdapter {
         endpoint: this.endpoint,
         oauthClientId: this.oauthClientId,
       };
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       return {
-        data: mockFill(req),
-        usedMock: true,
-        label: "MOCK order ack — live MCP call failed",
+        data: liveAuthRequired(req, `live MCP place_order failed: ${msg}`),
+        usedMock: false,
+        label:
+          "LIVE auth/submit failed — ensure MCP host OAuth (oauth_client_id=grok) and retry; not a paper fill",
         endpoint: this.endpoint,
         oauthClientId: this.oauthClientId,
       };

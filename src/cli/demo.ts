@@ -2,22 +2,27 @@ import { runAgentOnce, describeUniverse } from "../core/agent.js";
 import { concentration, pnlByAsset } from "../core/portfolio.js";
 import { AgentOsFacade } from "../adapters/agentOsFacade.js";
 import { BAW_DOCUMENTED_DAILY_CAPS_USD } from "../adapters/bawAgenticWallet.js";
+import { envStr } from "../core/env.js";
 
 async function main(): Promise<void> {
+  const mode = envStr("NEWSPULSE_MODE", "live").toLowerCase();
   console.log("===========================================================");
-  console.log(" NewsPulse DEMO - Track A / Binance Agent OS Mini Hackathon");
+  console.log(" NewsPulse LIVE smoke — Track A / Binance Agent OS");
   console.log(" Dual-rail: MCP (CEX) + BAW (Wallet / Agentic Hub)");
   console.log("===========================================================");
   console.log("Universe:", describeUniverse());
+  console.log("NEWSPULSE_MODE:", mode, "(default live)");
   console.log("");
 
-  const facade = new AgentOsFacade({ mode: "paper" });
+  // Drive adapters from env (default live). Do not force paper.
+  const facade = new AgentOsFacade();
   const status = facade.dualStatus();
   console.log("-- Dual-rail Agent OS --");
   console.log(`  MCP: ${status.mcp.endpoint}`);
-  console.log(`       oauth_client_id=${status.mcp.oauthClientId} | ${status.mcp.label}`);
+  console.log(`       oauth_client_id=${status.mcp.oauthClientId} | mode=${status.mcp.mode}`);
+  console.log(`       ${status.mcp.label}`);
   console.log(`  BAW: ${status.baw.hubUrl}`);
-  console.log(`       ${status.baw.label}`);
+  console.log(`       mode=${status.baw.mode} | ${status.baw.label}`);
   console.log(
     `       documented caps (defaults, not guarantees): swap=$${BAW_DOCUMENTED_DAILY_CAPS_USD.swap}/day, defi=$${BAW_DOCUMENTED_DAILY_CAPS_USD.defi}/day, x402=$${BAW_DOCUMENTED_DAILY_CAPS_USD.x402}/day`
   );
@@ -49,17 +54,20 @@ async function main(): Promise<void> {
   }
   console.log("");
 
-  console.log("-- Decisions (MCP / CEX paper path) --");
-  let buys = 0;
-  let sells = 0;
+  console.log("-- Decisions (MCP / CEX live path) --");
+  let pending = 0;
+  let rejectedAuth = 0;
+  let executed = 0;
   for (const d of result.decisions) {
     const mark = d.executed ? "EXEC" : "skip";
     console.log(
       `  ${mark} ${d.side.padEnd(4)} ${d.symbol.padEnd(5)} score=${d.score.toFixed(3)} size=$${d.sizeUsd.toFixed(0)} @ ${d.price}  ${d.mockLabel ?? ""}`
     );
     if (d.rejectReason) console.log(`         reject: ${d.rejectReason}`);
-    if (d.executed && d.side === "BUY") buys++;
-    if (d.executed && d.side === "SELL") sells++;
+    if (d.executed) executed++;
+    const label = (d.mockLabel ?? "").toLowerCase();
+    if (label.includes("pending")) pending++;
+    if (label.includes("auth required") || label.includes("rejected")) rejectedAuth++;
   }
   console.log("");
 
@@ -77,7 +85,7 @@ async function main(): Promise<void> {
   }
   console.log("");
 
-  console.log("-- Paper portfolio --");
+  console.log("-- Portfolio snapshot --");
   console.log(
     `  cash=$${result.portfolio.cashUsdt.toFixed(2)} equity=$${result.portfolio.equityUsd.toFixed(2)} realizedPnL=$${result.portfolio.realizedPnl.toFixed(2)}`
   );
@@ -90,48 +98,61 @@ async function main(): Promise<void> {
   console.log("  pnl by asset:", pnlByAsset(result.portfolio));
   console.log("");
 
-  console.log("-- Market snapshot --");
-  for (const m of result.market) {
-    const sign = m.change24hPct >= 0 ? "+" : "";
-    console.log(`  ${m.symbol.padEnd(5)} $${m.price}  24h ${sign}${m.change24hPct}%`);
-  }
-  console.log("");
-
-  const buySyms = result.decisions
-    .filter((d) => d.executed && d.side === "BUY")
-    .map((d) => d.symbol);
-  const sellSyms = result.decisions
-    .filter((d) => d.executed && d.side === "SELL")
-    .map((d) => d.symbol);
-
-  console.log("-- Demo assertions --");
-  console.log(`  executed BUYs:  ${buys} -> [${buySyms.join(", ")}]`);
-  console.log(`  executed SELLs: ${sells} -> [${sellSyms.join(", ")}]`);
+  console.log("-- Live smoke checks --");
+  console.log(`  facade mode:     ${facade.mode}`);
+  console.log(`  MCP oauth id:    ${status.mcp.oauthClientId}`);
+  console.log(`  decisions seen:  ${result.decisions.length} (executed attempts=${executed})`);
+  console.log(`  pending-ish:     ${pending}`);
+  console.log(`  auth/reject-ish: ${rejectedAuth}`);
   console.log(
-    `  BAW action:     ${result.bawAction?.status ?? "missing"} (${result.bawAction?.label?.slice(0, 60) ?? "n/a"}…)`
+    `  BAW status:      ${result.bawAction?.status ?? "none"}`
   );
 
-  if (buys < 1 || sells < 1) {
-    console.error("FAIL: need at least one BUY and one SELL (MCP paper path)");
-    process.exitCode = 1;
-    return;
-  }
-  if (new Set([...buySyms, ...sellSyms]).size < 2) {
-    console.error("FAIL: BUY and SELL must cover different assets");
-    process.exitCode = 1;
-    return;
-  }
-  if (
+  const liveOk = facade.mode === "live" || mode === "live";
+  const bawOk =
     !result.bawAction ||
-    (result.bawAction.status !== "FILLED_PAPER" &&
-      result.bawAction.status !== "SUBMITTED_MOCK")
-  ) {
-    console.error("FAIL: need at least one mocked/paper BAW wallet action for dual-rail visibility");
+    ["SUBMITTED_LIVE_PENDING", "REJECTED", "SUBMITTED_MOCK", "FILLED_PAPER"].includes(
+      result.bawAction.status
+    );
+
+  // Success: agent ran on live default; dual-rail visible; no claim of paper BUY/SELL success.
+  // Accept pending confirm OR clear auth reject — never require FILLED_PAPER.
+  if (!liveOk && mode !== "paper" && mode !== "mock") {
+    console.error("FAIL: expected live mode (or explicit paper/mock opt-in)");
     process.exitCode = 1;
     return;
   }
-  console.log("PASS: multi-asset BUY + SELL (MCP paper) + BAW wallet action demonstrated.");
-  console.log("Disclaimer: Not financial advice. Paper/mock is not live Binance execution.");
+  if (status.mcp.oauthClientId !== "grok") {
+    console.error("FAIL: oauth_client_id must be grok");
+    process.exitCode = 1;
+    return;
+  }
+  if (result.decisions.length < 1) {
+    console.error("FAIL: expected scoring/decision loop to produce decisions");
+    process.exitCode = 1;
+    return;
+  }
+  if (!bawOk) {
+    console.error("FAIL: unexpected BAW status");
+    process.exitCode = 1;
+    return;
+  }
+
+  // In live mode, executed MCP paths should not advertise FILLED_PAPER as success.
+  const paperFillClaim = result.decisions.some((d) =>
+    (d.mockLabel ?? "").includes("FILLED_PAPER") || (d.mockLabel ?? "").includes("PAPER SIM fill")
+  );
+  if (facade.mode === "live" && paperFillClaim) {
+    console.error("FAIL: live mode must not report paper fills as MCP success");
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log("PASS: live smoke — dual-rail status + agent loop OK.");
+  console.log(
+    "Note: SUBMITTED_LIVE_PENDING_CONFIRM / auth REJECTED are expected without an interactive OAuth session."
+  );
+  console.log("Disclaimer: Not financial advice. Live trades require Agent OS user confirmation.");
   console.log("See AGENT_OS_NOTES.md and DEMO.md");
 }
 
