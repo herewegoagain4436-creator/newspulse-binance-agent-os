@@ -3,7 +3,7 @@
 ## Quick start
 
 ```bash
-cd /workspace/hackathons/binance-agent-os-2026
+cd newspulse-binance-agent-os
 npm install
 npm run demo
 ```

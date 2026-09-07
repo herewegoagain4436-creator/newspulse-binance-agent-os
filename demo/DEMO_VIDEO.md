@@ -1,24 +1,19 @@
 # NewsPulse — Demo Video
 
-**File:** `demo/newspulse-demo.mp4`  
-**Resolution:** 1280x720 · H.264 · silent  
-**Duration:** ~82 seconds (target 60-90s)
+**File:** `demo/newspulse-live-screen.mp4`
+**Also:** `demo/newspulse-demo.mp4` (earlier slideshow)
+**Resolution:** 1280x720 · H.264 · silent
+**Duration:** ~83 seconds (target ≥60s)
 
-## What the video shows
+## What the live-screen video shows
 
-1. **Title** — NewsPulse, Agent OS Track A; news to score to risk to trade
-2. **Dual-rail** — MCP (CEX) + BAW (Wallet / Agentic Hub), both PAPER SIM
-3. **Universe** — Top-10 non-stables: BTC, ETH, BNB, SOL, XRP, DOGE, ADA, TRX, AVAX, LINK
-4. **Pipeline** — NEWS then SCORE then RISK then TRADE
-5. **Demo results** — MCP: long BTC/ETH/BNB/LINK, short SOL/DOGE/AVAX; BAW USDT→ETH paper swap
-6. **CLI output** — Condensed terminal view ending in PASS
-7. **How to run** — see DEMO.md (install, demo script, Vite dashboard)
-8. **Disclaimer** — Not financial advice; paper/mock is not live Binance execution
-9. **End card** — Track A dual-rail complete
+1. **Title** — NewsPulse Track A; paper/sim only — no live txs
+2. **Real CLI** — scrolling demo transcript ending in PASS (BUY+SELL MCP paper + BAW wallet action)
+3. **Dashboard** — Vite UI ready → after Run agent once → results/portfolio
+4. **End card** — DEMO PASS + docs pointer
 
 ## Notes
 
 - CLI transcript: `demo/demo-output.txt`
-- No secrets committed; paper/sim only
-- Frames via Pillow; assemble via ffmpeg
-- Slide timings sum ~75s; encoded duration ~82s
+- UI captures under `demo/capture/` (local only)
+- No secrets; paper/sim only

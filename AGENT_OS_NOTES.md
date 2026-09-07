@@ -13,7 +13,7 @@ Agent OS exposes **two rails**. NewsPulse integrates both.
 ### Grok CLI setup (reference)
 
 ```text
-add binance-mcp-server with url=https://agent.binance.com/mcp/agentic oauth_client_id=groj
+add binance-mcp-server with url=https://agent.binance.com/mcp/agentic oauth_client_id=grok
 ```
 
 Do **not** open the MCP endpoint in a browser. Use the MCP client / OAuth flow only.
@@ -63,7 +63,7 @@ Paper/mock interface: balance, quote swap, execute swap within daily cap, kill-s
 
 - Default mode: **paper/sim** (local fills / local wallet ledger). No live orders unless `NEWSPULSE_MODE=live` and OAuth MCP / hub is reachable.
 - When live MCP or BAW is unavailable, adapters return **explicitly labeled MOCK** responses.
-- This project does **neot** invent Binance guarantees. Paper ≠ live. Mock ≠ live. Documented caps ≠ contractual SLAs.
+- This project does **not** invent Binance guarantees. Paper ≠ live. Mock ≠ live. Documented caps ≠ contractual SLAs.
 
 ## Official docs
 

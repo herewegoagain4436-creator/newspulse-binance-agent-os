@@ -17,7 +17,7 @@ Paper/mock when live is unavailable; every mock path is labeled.
 
 ## Features
 
-- Universe: BTC, ETH, BNB, SOL, XRP, DOGE, ADA, TRX, AVAX, LINK (update path in `src/core/universe.ts`; optional CoinGecko refresh)
+- Universe: BTC, ETH, BNB, SOL, XRP, DOGE, ADA, TRX, AVAX, LINK (hardcoded top-10 non-stables in `src/core/universe.ts`; optional best-effort CoinGecko refresh when online — falls back to hardcoded)
 - Explainable scoring with keyword lexicon + symbol mapping + fixture sentiment hints
 - Risk: max position per asset, max daily trades, cooldown, portfolio concentration, kill-switch
 - **MCP adapter** — OAuth (`oauth_client_id=grok`), no API keys on device
@@ -45,9 +45,12 @@ flowchart LR
 
 ## Quick start
 
+> **Paper/sim only — no live txs.** Keep `NEWSPULSE_MODE=paper` for demos and judging.
+
 ```bash
-cd /workspace/hackathons/binance-agent-os-2026
-nmp install
+git clone https://github.com/herewegoagain4436-creator/newspulse-binance-agent-os.git
+cd newspulse-binance-agent-os
+npm install
 npm run demo
 npm run dev
 ```
@@ -60,7 +63,7 @@ See **AGENT_OS_NOTES.md** for MCP + BAW endpoints, OAuth, documented wallet caps
 
 Grok MCP registration (reference):
 
-``text
+```text
 add binance-mcp-server with url=https://agent.binance.com/mcp/agentic oauth_client_id=grok
 ```
 

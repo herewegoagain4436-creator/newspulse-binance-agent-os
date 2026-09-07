@@ -5,3 +5,7 @@ dist/
 *.log
 .vite/
 coverage/
+
+# local demo capture artifacts
+demo/live_frames/
+demo/capture/

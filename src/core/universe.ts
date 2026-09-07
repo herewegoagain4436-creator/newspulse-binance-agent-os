@@ -2,7 +2,7 @@
  * Trade universe: top ~10 market-cap coins EXCLUDING stablecoins.
  *
  * Update path:
- * 1. Prefer dynamic fetch via CoinGecko (see fetchTopNonStableUniverse).
+ * 1. Optional best-effort CoinGecko fetch when online (see fetchTopNonStableUniverse); not required for demos.
  * 2. Fall back to HARDCODED_UNIVERSE below when offline / rate-limited.
  * 3. Re-check rankings periodically; remove stables (USDT, USDC, DAI, FDUSD, TUSD, USDE, etc.).
  */
@@ -48,7 +48,7 @@ export function pairFor(symbol: SymbolId): string {
 }
 
 /**
- * Best-effort dynamic top-10 non-stable fetch (CoinGecko public API).
+ * Best-effort optional top-10 non-stable fetch (CoinGecko public API). Demos use hardcoded universe by default.
  * Returns hardcoded list on any failure — never blocks the agent loop.
  */
 export async function fetchTopNonStableUniverse(
