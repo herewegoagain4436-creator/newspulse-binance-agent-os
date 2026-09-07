@@ -26,6 +26,7 @@ export function App() {
         },
         defaultOrderUsd: 1500,
         enableBawPath: true,
+        premium: { force: true, notionalUsd: 2 },
       });
       setResult(r);
     } catch (e) {
@@ -45,8 +46,8 @@ export function App() {
             News<span>Pulse</span>
           </h1>
           <p className="sub">
-            Track A: news to scores to risk-checked decisions for top-10 non-stables.
-            Dual-rail Agent OS: MCP (CEX) + BAW (Wallet). Live default; trades need confirmation.
+            Track A: brain (rules/lexicon/scorer) + optional x402 premium signals → risk-checked
+            BUY/SELL/HOLD via Agent OS MCP (CEX) + BAW (Wallet). Live default; trades need confirmation.
           </p>
           <p className="sub mono">Universe: {universe}</p>
         </div>
@@ -90,8 +91,8 @@ export function App() {
         <div className="card">
           <h2>Ready</h2>
           <p className="sub">
-            Click Run agent once to score fixtures, submit via live MCP (pending confirm or
-            clear auth error), and show a BAW wallet action when news implies on-chain.
+            Click Run agent once: brain scores free news → maybe tiny x402 premium → rescore →
+            risk → live MCP/BAW (pending confirm or clear auth — never fake fills).
           </p>
         </div>
       ) : null}
@@ -99,9 +100,9 @@ export function App() {
       {result ? <AppBody result={result} conc={conc} pnl={pnl} /> : null}
 
       <p className="disclaimer">
-        Disclaimer: not financial advice. Live Agent OS trades require user confirmation and
-        OAuth (MCP oauth_client_id=grok) + Agentic Hub (BAW). No fake live fills. Documented
-        BAW caps are public defaults — confirm in App. See AGENT_OS_NOTES.md.
+        Disclaimer: not financial advice. Live Agent OS trades require user confirmation
+        (MCP OAuth + Agentic Hub). No fake live fills. x402 premium payments stay tiny under
+        the documented ~$20/day cap. See AGENT_OS_NOTES.md.
       </p>
     </div>
   );

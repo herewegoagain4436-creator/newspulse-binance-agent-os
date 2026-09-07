@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   const mode = envStr("NEWSPULSE_MODE", "live").toLowerCase();
   console.log("===========================================================");
   console.log(" NewsPulse LIVE smoke — Track A / Binance Agent OS");
-  console.log(" Dual-rail: MCP (CEX) + BAW (Wallet / Agentic Hub)");
+  console.log(" Brain + x402 premium signals + dual-rail MCP/BAW");
   console.log("===========================================================");
   console.log("Universe:", describeUniverse());
   console.log("NEWSPULSE_MODE:", mode, "(default live)");
@@ -37,6 +37,8 @@ async function main(): Promise<void> {
     },
     defaultOrderUsd: 1500,
     enableBawPath: true,
+    // Exercise premium-signal branch (also triggered by conflicting BTC fixtures)
+    premium: { force: true, notionalUsd: 2 },
   });
 
   console.log("Adapter (combined):", result.adapterMeta.label);
@@ -45,7 +47,28 @@ async function main(): Promise<void> {
   console.log("Mode:", result.mode, "| usedMock:", result.adapterMeta.usedMock);
   console.log("");
 
-  console.log("-- Scores --");
+  console.log("-- x402 premium signal --");
+  if (result.premiumSignal) {
+    const p = result.premiumSignal;
+    console.log(`  attempted:      ${p.attempted}`);
+    console.log(`  reason:         ${p.reason}`);
+    console.log(`  paymentStatus:  ${p.paymentStatus}`);
+    console.log(`  notionalUsd:    $${p.notionalUsd} (cap documented $${p.documentedCapUsd}/day)`);
+    console.log(`  label:          ${p.label}`);
+    if (p.paymentId) console.log(`  paymentId:      ${p.paymentId}`);
+    console.log(`  contentApplied: ${p.contentApplied}`);
+    if (p.contentNote) console.log(`  contentNote:    ${p.contentNote}`);
+    if (p.symbols) {
+      console.log(
+        `  hints:          symbols=${p.symbols.join(",")} sentiment=${p.sentiment} source=${p.sourceLabel}`
+      );
+    }
+  } else {
+    console.log("  (disabled)");
+  }
+  console.log("");
+
+  console.log("-- Scores (after premium merge if applied) --");
   for (const s of result.scores) {
     console.log(
       `  ${s.symbol.padEnd(5)} score=${s.score.toFixed(3).padStart(7)} conf=${s.confidence.toFixed(2)}`
@@ -107,16 +130,25 @@ async function main(): Promise<void> {
   console.log(
     `  BAW status:      ${result.bawAction?.status ?? "none"}`
   );
+  console.log(
+    `  x402 premium:    ${result.premiumSignal?.paymentStatus ?? "none"}`
+  );
 
   const liveOk = facade.mode === "live" || mode === "live";
   const bawOk =
     !result.bawAction ||
-    ["SUBMITTED_LIVE_PENDING", "REJECTED", "SUBMITTED_MOCK", "FILLED_PAPER"].includes(
+    ["SUBMITTED_LIVE_PENDING", "REJECTED", "SUBMITTED_MOCK", "FILLED_PAPER", "SKIPPED"].includes(
       result.bawAction.status
     );
 
-  // Success: agent ran on live default; dual-rail visible; no claim of paper BUY/SELL success.
-  // Accept pending confirm OR clear auth reject — never require FILLED_PAPER.
+  const prem = result.premiumSignal;
+  const premOk =
+    prem &&
+    prem.attempted &&
+    ["PENDING", "REJECTED", "PAID_PAPER", "PAID_MOCK"].includes(prem.paymentStatus);
+
+  // Success: agent ran on live default; dual-rail visible; premium branch exercised;
+  // no claim of paper BUY/SELL success. Accept pending confirm OR clear auth reject.
   if (!liveOk && mode !== "paper" && mode !== "mock") {
     console.error("FAIL: expected live mode (or explicit paper/mock opt-in)");
     process.exitCode = 1;
@@ -137,6 +169,20 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  if (!premOk) {
+    console.error(
+      "FAIL: expected premium-signal branch attempt with PENDING/REJECTED/PAID_* status, got:",
+      prem
+    );
+    process.exitCode = 1;
+    return;
+  }
+  // Live must not claim a filled x402 that did not happen
+  if (facade.mode === "live" && prem && prem.paymentStatus === "PAID_PAPER") {
+    console.error("FAIL: live mode must not report PAID_PAPER for x402");
+    process.exitCode = 1;
+    return;
+  }
 
   // In live mode, executed MCP paths should not advertise FILLED_PAPER as success.
   const paperFillClaim = result.decisions.some((d) =>
@@ -148,9 +194,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log("PASS: live smoke — dual-rail status + agent loop OK.");
+  console.log("PASS: live smoke — brain + x402 premium + dual-rail OK.");
   console.log(
-    "Note: SUBMITTED_LIVE_PENDING_CONFIRM / auth REJECTED are expected without an interactive OAuth session."
+    "Note: SUBMITTED_LIVE_PENDING_CONFIRM / auth REJECTED / x402 PENDING|REJECTED are expected without interactive OAuth/hub session."
   );
   console.log("Disclaimer: Not financial advice. Live trades require Agent OS user confirmation.");
   console.log("See AGENT_OS_NOTES.md and DEMO.md");

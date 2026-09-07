@@ -126,14 +126,35 @@ export interface BawActionSummary {
   usedMock: boolean;
 }
 
+/** x402 premium-signal attempt summary (brain may pay for labeled premium) */
+export interface PremiumSignalSummary {
+  attempted: boolean;
+  reason: string;
+  notionalUsd: number;
+  paymentStatus: "SKIPPED" | "PAID_PAPER" | "PAID_MOCK" | "PENDING" | "REJECTED";
+  paymentId?: string;
+  label: string;
+  contentApplied: boolean;
+  contentNote?: string;
+  sourceLabel?: "premium/x402";
+  symbols?: SymbolId[];
+  sentiment?: number;
+  remainingX402CapUsd?: number;
+  documentedCapUsd: number;
+}
+
 export interface AgentRunResult {
   mode: string;
   decisions: Decision[];
   scores: SymbolScore[];
+  /** Scores before premium merge (if premium applied) */
+  scoresBeforePremium?: SymbolScore[];
   market: MarketTick[];
   portfolio: PortfolioSnapshot;
   news: NewsItem[];
   adapterMeta: DualAdapterMeta;
   /** Optional on-chain / wallet leg via BAW */
   bawAction?: BawActionSummary | null;
+  /** x402 premium signal attempt (paid / pending / rejected / skipped) */
+  premiumSignal?: PremiumSignalSummary | null;
 }

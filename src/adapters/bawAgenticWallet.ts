@@ -84,12 +84,26 @@ function utcDayKey(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+export interface BawX402Ack {
+  paymentId: string;
+  status: "FILLED_PAPER" | "SUBMITTED_MOCK" | "REJECTED" | "SUBMITTED_LIVE_PENDING";
+  notionalUsd: number;
+  purpose: string;
+  remainingX402CapUsd: number;
+  documentedCapUsd: number;
+  requiresConfirmation: boolean;
+  raw?: unknown;
+}
+
 export class BawAgenticWalletAdapter {
   readonly hubUrl: string;
   readonly mode: BawMode;
   private killSwitchOn = false;
   private swapSpentUsd = 0;
   private spendDay = utcDayKey();
+  /** x402 micropayment spend (documented ~$20/day cap) */
+  private x402SpentUsd = 0;
+  private x402SpendDay = utcDayKey();
   /** Paper balances (USDT + a few majors) */
   private balances: Record<string, number> = {
     USDT: 5_000,
@@ -121,6 +135,7 @@ export class BawAgenticWalletAdapter {
 
   status() {
     this.rollDayIfNeeded();
+    this.rollX402DayIfNeeded();
     return {
       rail: "BAW" as const,
       hubUrl: this.hubUrl,
@@ -131,6 +146,11 @@ export class BawAgenticWalletAdapter {
       remainingSwapCapUsd: Math.max(
         0,
         BAW_DOCUMENTED_DAILY_CAPS_USD.swap - this.swapSpentUsd
+      ),
+      x402SpentUsd: this.x402SpentUsd,
+      remainingX402CapUsd: Math.max(
+        0,
+        BAW_DOCUMENTED_DAILY_CAPS_USD.x402 - this.x402SpentUsd
       ),
       label: this.metaLabel(this.mode !== "live"),
       note: "Caps are documented defaults from public materials — not invented guarantees; confirm in Binance App / wallet settings.",
@@ -458,6 +478,176 @@ export class BawAgenticWalletAdapter {
       hubUrl: this.hubUrl,
       rail: "BAW",
     };
+  }
+
+  /**
+   * Tiny x402-style micropayment for premium data / signals.
+   * Documented default cap ~$20/day — keep notional well under that (e.g. $1–5).
+   * Live without hub/auth: REJECTED or SUBMITTED_LIVE_PENDING — never fake FILLED_PAPER.
+   */
+  async payX402(opts: {
+    notionalUsd: number;
+    purpose: string;
+    clientId?: string;
+  }): Promise<BawAdapterResult<BawX402Ack>> {
+    this.rollDayIfNeeded();
+    this.rollX402DayIfNeeded();
+    const clientId = opts.clientId ?? `x402-${Date.now()}`;
+    const notional = Math.max(0.01, Number(opts.notionalUsd) || 0);
+    const remaining = Math.max(
+      0,
+      BAW_DOCUMENTED_DAILY_CAPS_USD.x402 - this.x402SpentUsd
+    );
+
+    const baseAck = {
+      notionalUsd: notional,
+      purpose: opts.purpose,
+      remainingX402CapUsd: remaining,
+      documentedCapUsd: BAW_DOCUMENTED_DAILY_CAPS_USD.x402,
+    };
+
+    if (this.killSwitchOn) {
+      return {
+        data: {
+          paymentId: `REJ-${clientId}`,
+          status: "REJECTED",
+          ...baseAck,
+          requiresConfirmation: false,
+          raw: { reason: "kill-switch" },
+        },
+        usedMock: this.mode !== "live",
+        label: "BAW x402 REJECTED — kill-switch engaged",
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
+
+    if (notional > remaining) {
+      return {
+        data: {
+          paymentId: `REJ-${clientId}`,
+          status: "REJECTED",
+          ...baseAck,
+          requiresConfirmation: false,
+          raw: {
+            reason: "daily_x402_cap",
+            note: `Documented default $${BAW_DOCUMENTED_DAILY_CAPS_USD.x402}/day x402 cap — confirm live quota in App`,
+          },
+        },
+        usedMock: this.mode !== "live",
+        label: `BAW x402 REJECTED — would exceed documented x402 daily cap ($${BAW_DOCUMENTED_DAILY_CAPS_USD.x402})`,
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
+
+    if (this.mode === "paper") {
+      this.x402SpentUsd += notional;
+      return {
+        data: {
+          paymentId: `PAPER-X402-${clientId}`,
+          status: "FILLED_PAPER",
+          ...baseAck,
+          remainingX402CapUsd: Math.max(
+            0,
+            BAW_DOCUMENTED_DAILY_CAPS_USD.x402 - this.x402SpentUsd
+          ),
+          requiresConfirmation: false,
+          raw: {
+            paper: true,
+            note: "PAPER SIM — local x402 ledger only; not submitted to Agentic Hub",
+          },
+        },
+        usedMock: false,
+        label: `PAPER SIM BAW x402 fill $${notional} (no Agentic Hub submit)`,
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
+
+    if (this.mode === "mock") {
+      this.x402SpentUsd += notional;
+      return {
+        data: {
+          paymentId: `MOCK-X402-${clientId}`,
+          status: "SUBMITTED_MOCK",
+          ...baseAck,
+          remainingX402CapUsd: Math.max(
+            0,
+            BAW_DOCUMENTED_DAILY_CAPS_USD.x402 - this.x402SpentUsd
+          ),
+          requiresConfirmation: false,
+          raw: {
+            mock: true,
+            note: "MOCK — Agentic Hub x402 not available in-process; not a live payment",
+          },
+        },
+        usedMock: true,
+        label: `MOCK BAW x402 ack $${notional} (opt-in mock mode)`,
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
+
+    // live
+    let hubReachable = false;
+    try {
+      const res = await fetch(this.hubUrl, {
+        method: "GET",
+        signal: AbortSignal.timeout(2500),
+      });
+      hubReachable = res.ok || res.status === 401 || res.status === 403;
+    } catch {
+      hubReachable = false;
+    }
+
+    if (!hubReachable) {
+      return {
+        data: {
+          paymentId: `AUTH-X402-${clientId}`,
+          status: "REJECTED",
+          ...baseAck,
+          requiresConfirmation: false,
+          raw: {
+            live: true,
+            authRequired: true,
+            note: "LIVE BAW x402 auth/hub required — open Agentic Hub in Binance Wallet App. Not a paper fill.",
+            hubUrl: this.hubUrl,
+          },
+        },
+        usedMock: false,
+        label:
+          "LIVE BAW x402 auth required — Agentic Hub unavailable in-process; authenticate via Binance Wallet App",
+        hubUrl: this.hubUrl,
+        rail: "BAW",
+      };
+    }
+
+    return {
+      data: {
+        paymentId: `LIVE-PENDING-X402-${clientId}`,
+        status: "SUBMITTED_LIVE_PENDING",
+        ...baseAck,
+        requiresConfirmation: true,
+        raw: {
+          live: true,
+          note: "LIVE BAW x402 pending — confirm in Binance Wallet / Agentic Hub; not a filled paper payment",
+          hubUrl: this.hubUrl,
+        },
+      },
+      usedMock: false,
+      label: `LIVE BAW x402 pending confirmation — $${notional} for ${opts.purpose}`,
+      hubUrl: this.hubUrl,
+      rail: "BAW",
+    };
+  }
+
+  private rollX402DayIfNeeded(): void {
+    const today = utcDayKey();
+    if (today !== this.x402SpendDay) {
+      this.x402SpendDay = today;
+      this.x402SpentUsd = 0;
+    }
   }
 }
 

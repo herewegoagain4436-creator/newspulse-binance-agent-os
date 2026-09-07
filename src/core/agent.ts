@@ -1,5 +1,9 @@
 /**
- * NewsPulse agent: news → scores → risk-checked decisions → MCP (CEX) + optional BAW (Wallet).
+ * NewsPulse agent loop:
+ *   free news → brain score → maybe x402 premium signal → rescore/merge
+ *   → risk gates → BUY/SELL/HOLD → MCP (CEX) and/or BAW actions
+ *
+ * Brain = rules/lexicon/scorer (no LLM required). Grok is an optional MCP host example.
  */
 import { AgentOsFacade } from "../adapters/agentOsFacade.js";
 import { BinanceAgentOsAdapter } from "../adapters/binanceAgentOs.js";
@@ -9,6 +13,11 @@ import {
   emptyPortfolio,
   updateMarks,
 } from "./portfolio.js";
+import {
+  maybeFetchPremiumSignal,
+  mergePremiumIntoNews,
+  type PremiumSignalOptions,
+} from "./premiumSignal.js";
 import {
   applyRiskToDecision,
   createRiskState,
@@ -24,6 +33,7 @@ import type {
   MarketTick,
   NewsItem,
   PortfolioSnapshot,
+  PremiumSignalSummary,
   RiskConfig,
   SymbolId,
 } from "./types.js";
@@ -42,6 +52,8 @@ export interface AgentOptions {
   defaultOrderUsd?: number;
   /** Run optional BAW wallet leg when news implies on-chain (default true) */
   enableBawPath?: boolean;
+  /** Premium x402 signal options (brain may pay tiny amount for labeled premium) */
+  premium?: PremiumSignalOptions | false;
 }
 
 function uid(prefix: string): string {
@@ -86,7 +98,7 @@ export function seedPortfolio(
 }
 
 export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunResult> {
-  const news = opts.news ?? loadFixtureNews();
+  const newsIn = opts.news ?? loadFixtureNews();
   const market = opts.market ?? loadFixtureMarket();
   const facade = asFacade(opts.adapter);
   const risk = opts.risk ?? DEFAULT_RISK;
@@ -108,10 +120,45 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
     >
   );
 
-  const scores = scoreNews(news);
+  // 1) Brain scores free / fixture news
+  const scoresBeforePremium = scoreNews(newsIn);
+
+  // 2) Maybe pay tiny x402 for premium signal → 3) merge / rescore
+  let premiumSummary: PremiumSignalSummary | null = null;
+  let news = newsIn;
+  let scores = scoresBeforePremium;
+
+  if (opts.premium !== false) {
+    const premOpts: PremiumSignalOptions =
+      opts.premium === undefined ? {} : opts.premium;
+    const attempt = await maybeFetchPremiumSignal(scoresBeforePremium, newsIn, {
+      ...premOpts,
+      baw: premOpts.baw ?? facade.baw,
+    });
+    premiumSummary = {
+      attempted: attempt.attempted,
+      reason: attempt.reason,
+      notionalUsd: attempt.notionalUsd,
+      paymentStatus: attempt.paymentStatus,
+      paymentId: attempt.paymentId,
+      label: attempt.label,
+      contentApplied: attempt.contentApplied,
+      contentNote: attempt.contentNote,
+      sourceLabel: attempt.hints?.sourceLabel,
+      symbols: attempt.hints?.symbols,
+      sentiment: attempt.hints?.sentiment,
+      remainingX402CapUsd: attempt.remainingX402CapUsd,
+      documentedCapUsd: attempt.documentedCapUsd,
+    };
+    if (attempt.contentApplied) {
+      news = mergePremiumIntoNews(newsIn, attempt);
+      scores = scoreNews(news);
+    }
+  }
+
   const decisions: Decision[] = [];
 
-  // Process strongest absolute scores first
+  // 4) Risk → decisions → 5) MCP/BAW actions
   const ranked = [...scores].sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
 
   for (const s of ranked) {
@@ -207,11 +254,13 @@ export async function runAgentOnce(opts: AgentOptions = {}): Promise<AgentRunRes
     mode: facade.mode,
     decisions,
     scores,
+    scoresBeforePremium,
     market: ticks,
     portfolio,
     news,
     adapterMeta,
     bawAction,
+    premiumSignal: premiumSummary,
   };
 }
 

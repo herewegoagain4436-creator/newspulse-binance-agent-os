@@ -11,6 +11,17 @@
     "sentimentHint": 0.82
   },
   {
+    "id": "n-btc-outflow-conflict",
+    "headline": "Bitcoin ETF sees sudden outflow spike; traders turn bearish short-term",
+    "summary": "A sharp BTC ETF outflow print sparks sell-off chatter, conflicting with earlier inflow headlines.",
+    "source": "fixture-wire",
+    "publishedAt": "2026-09-06T08:05:00.000Z",
+    "symbols": [
+      "BTC"
+    ],
+    "sentimentHint": -0.55
+  },
+  {
     "id": "n-eth-upgrade",
     "headline": "Ethereum Fusaka upgrade mainnet date confirmed; staking rewards outlook bullish",
     "summary": "Core devs lock Fusaka mainnet schedule. Analysts cite breakthrough in throughput and ETH staking rewards.",
